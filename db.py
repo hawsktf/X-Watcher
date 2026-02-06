@@ -13,6 +13,8 @@ POSTS_CSV = os.path.join(DATA_DIR, "posts.csv")
 HANDLES_CSV = os.path.join(DATA_DIR, "handles.csv")
 REPLIES_CSV = os.path.join(DATA_DIR, "pending_replies.csv")
 POSTED_REPLIES_CSV = os.path.join(DATA_DIR, "posted_replies.csv")
+SCORECARD_CSV = os.path.join(DATA_DIR, "scorecard.csv")
+
 
 def get_conn():
     # Deprecated SQLite connection
@@ -35,6 +37,11 @@ def init_db():
         with open(HANDLES_CSV, 'w', newline='') as f:
             writer = csv.writer(f, quoting=csv.QUOTE_ALL)
             writer.writerow(['handle', 'last_checked', 'last_posted'])
+
+    if not os.path.exists(SCORECARD_CSV):
+        with open(SCORECARD_CSV, 'w', newline='') as f:
+            writer = csv.writer(f, quoting=csv.QUOTE_ALL)
+            writer.writerow(['timestamp', 'source', 'handle', 'success', 'latency_seconds', 'posts_scraped', 'error_message'])
 
 def add_post(post_id, handle, content, score=0, is_reply=False, is_pinned=False, has_image=False, has_video=False, has_link=False, link_url="", posted_at=None):
     now = datetime.utcnow()
@@ -237,3 +244,15 @@ def get_existing_post_ids():
                 ids.add(row['post_id'])
     return ids
 
+def log_scraper_performance(source, handle, success, latency, posts_scraped=0, error_msg=""):
+    with open(SCORECARD_CSV, 'a', newline='') as f:
+        writer = csv.writer(f, quoting=csv.QUOTE_ALL)
+        writer.writerow([
+            datetime.utcnow().isoformat(),
+            source,
+            handle,
+            success,
+            f"{latency:.2f}",
+            posts_scraped,
+            error_msg
+        ])

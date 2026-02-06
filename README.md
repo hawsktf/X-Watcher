@@ -61,23 +61,31 @@ X-Watcher is a powerful social media monitoring and automation agent designed fo
 
 ## 🏃 Usage
 
-### Start the Main Agent
-Runs the scraper and optional drafting loop:
+### Recommended: Use the Helper Script
+The easiest way to run the agent is using the provided helper script, which ensures the correct virtual environment is used:
 ```bash
+./run_app.sh
+```
+To run **only** the scraper: `./run_app.sh --scraper-only`
+
+### Alternative: Direct Execution
+If you prefer direct execution, ensure you are using the virtual environment interpreter:
+
+**Option 1: Activate the venv first**
+```bash
+source venv/bin/activate
 python app.py
 ```
-To run **only** the scraper: `python app.py --scraper-only`
 
-### Launch the Dashboard
-The main control hub:
+**Option 2: Use the venv path**
 ```bash
-python dashboard.py
+./venv/bin/python app.py
 ```
 
-### View the Premium Feed
-Start the GUI server and visit `http://localhost:5000`:
-- **Via Dashboard**: Select **Option 7**.
-- **Directly**: `python feed_app.py`
+### 📊 Other Components
+All other scripts should also be run using the virtual environment:
+- **Dashboard**: `./venv/bin/python dashboard.py`
+- **Feed GUI**: `./venv/bin/python feed_app.py`
 
 ## ⚖️ License
 This project is intended for personal monitoring and automation. Use responsibly and in accordance with X.com's Terms of Service.
