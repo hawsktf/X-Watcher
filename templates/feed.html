@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>X-Watcher Feed</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #000000;
+            --card-bg: #16181c;
+            --text-color: #e7e9ea;
+            --text-muted: #71767b;
+            --accent-color: #1d9bf0;
+            --border-color: #2f3336;
+            --hover-bg: #1d1f23;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.5;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            border-left: 1px solid var(--border-color);
+            border-right: 1px solid var(--border-color);
+            min-height: 100vh;
+        }
+
+        header {
+            position: sticky;
+            top: 0;
+            background-color: rgba(0, 0, 0, 0.65);
+            backdrop-filter: blur(12px);
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+            z-index: 100;
+        }
+
+        header h1 {
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        #feed {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .tweet-card {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+            transition: background-color 0.2s;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .tweet-card:hover {
+            background-color: var(--hover-bg);
+        }
+
+        .tweet-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 4px;
+        }
+
+        .avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: linear-gradient(45deg, #1d9bf0, #8ecdf8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 20px;
+            color: #fff;
+            flex-shrink: 0;
+        }
+
+        .tweet-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .handle-row {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .display-name {
+            font-weight: 700;
+            color: var(--text-color);
+        }
+
+        .handle {
+            color: var(--text-muted);
+        }
+
+        .meta-line {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-top: -2px;
+        }
+
+        .badge {
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background-color: rgba(29, 155, 240, 0.1);
+            color: var(--accent-color);
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge.reply {
+            background-color: rgba(0, 186, 124, 0.1);
+            color: #00ba7c;
+        }
+
+        .badge.pinned {
+            background-color: rgba(255, 212, 0, 0.1);
+            color: #ffd400;
+        }
+
+        .tweet-content {
+            margin-left: 60px;
+            font-size: 15px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .reply-line {
+            position: absolute;
+            left: 39px;
+            /* Centered under avatar */
+            top: 64px;
+            bottom: 0;
+            width: 2px;
+            background-color: var(--border-color);
+            z-index: 1;
+        }
+
+        .tweet-card.is-reply {
+            border-top: none;
+            padding-top: 8px;
+        }
+
+        .tweet-card.is-reply .avatar {
+            width: 32px;
+            height: 32px;
+            font-size: 14px;
+            margin-left: 8px;
+            /* Offset for thread line */
+        }
+
+        .tweet-card.is-reply .tweet-content {
+            margin-left: 68px;
+            opacity: 0.9;
+        }
+
+        .attachments {
+            margin-left: 60px;
+            margin-top: 12px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .attachment-tag {
+            background-color: var(--border-color);
+            padding: 4px 10px;
+            border-radius: 16px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .link-url {
+            margin-left: 60px;
+            margin-top: 8px;
+            font-size: 14px;
+            color: var(--accent-color);
+            text-decoration: none;
+            display: block;
+        }
+
+        .link-url:hover {
+            text-decoration: underline;
+        }
+
+        .loader {
+            display: flex;
+            justify-content: center;
+            padding: 40px;
+        }
+
+        .spinner {
+            width: 30px;
+            height: 30px;
+            border: 3px solid rgba(29, 155, 240, 0.2);
+            border-top-color: var(--accent-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Animations */
+        .tweet-card {
+            animation: fadeIn 0.4s ease-out backwards;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>X-Watcher Feed</h1>
+        </header>
+
+        <div id="feed">
+            <div class="loader">
+                <div class="spinner"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function fetchPosts() {
+            try {
+                const response = await fetch('/api/posts');
+                const posts = await response.json();
+                renderFeed(posts);
+            } catch (err) {
+                console.error("Failed to fetch posts:", err);
+                document.getElementById('feed').innerHTML = '<div style="padding: 20px; text-align: center; color: #f4212e;">Failed to load feed. Check if the server is running.</div>';
+            }
+        }
+
+        function renderFeed(posts) {
+            const feedEl = document.getElementById('feed');
+            if (posts.length === 0) {
+                feedEl.innerHTML = '<div style="padding: 40px; text-align: center; color: var(--text-muted);">No posts scraped yet. Run the scraper to see content!</div>';
+                return;
+            }
+
+            feedEl.innerHTML = posts.map((post, index) => {
+                const initial = post.handle ? post.handle[0].toUpperCase() : '?';
+                const isReply = post.is_reply === 'True' || post.is_reply === '1' || post.is_reply === true;
+                const isPinned = post.is_pinned === 'True' || post.is_pinned === '1' || post.is_pinned === true;
+
+                // Format relative time or keep raw if parsing fails
+                const dateRaw = post.posted_at || post.scraped_at;
+
+                return `
+                    <div class="tweet-card ${isReply ? 'is-reply' : ''}" style="animation-delay: ${index * 0.05}s">
+                        ${isReply ? '<div class="reply-line"></div>' : ''}
+                        <div class="tweet-header">
+                            <div class="avatar">${initial}</div>
+                            <div class="tweet-info">
+                                <div class="handle-row">
+                                    <span class="display-name">${post.handle}</span>
+                                    <span class="handle">@${post.handle}</span>
+                                </div>
+                                <div class="meta-line">
+                                    <span>${post.formatted_date || post.posted_at || post.scraped_at}</span>
+                                    <span style="opacity: 0.5; font-size: 11px;">(Scraped: ${post.scraped_at})</span>
+                                    ${isPinned ? '<span class="badge pinned">📌 Pinned</span>' : ''}
+                                    ${isReply ? '<span class="badge reply">↩️ Reply</span>' : ''}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="tweet-content">${post.content}</div>
+                        
+                        ${(post.has_image === 'True' || post.has_video === 'True') ? `
+                            <div class="attachments">
+                                ${post.has_image === 'True' ? '<span class="attachment-tag">🖼️ Image</span>' : ''}
+                                ${post.has_video === 'True' ? '<span class="attachment-tag">🎥 Video</span>' : ''}
+                            </div>
+                        ` : ''}
+
+                        ${post.has_link === 'True' && post.link_url ? `
+                            <a href="${post.link_url}" target="_blank" class="link-url">${post.link_url}</a>
+                        ` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function init() {
+            // First fetch config
+            let refreshInterval = 300; // default 5 mins
+            try {
+                const cfgRes = await fetch('/api/config');
+                const cfg = await cfgRes.json();
+                refreshInterval = cfg.gui_refresh_seconds || 300;
+                console.log(`Feed refresh set to ${refreshInterval} seconds`);
+            } catch (e) { console.error("Could not fetch config", e); }
+
+            // Initial fetch
+            fetchPosts();
+
+            // Set interval (convert seconds to ms)
+            setInterval(fetchPosts, refreshInterval * 1000);
+        }
+
+        init();
+    </script>
+</body>
+
+</html>

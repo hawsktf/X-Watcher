@@ -1,3 +1,7 @@
-feedparser
+playwright
+python-dotenv
 flask
-
+python-dateutil
+requests
+tweepy
+feedparser

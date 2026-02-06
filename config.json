@@ -1,9 +1,46 @@
 {
     "handles": [
-        "elonmusk",
-        "satyanadella",
-        "naval"
+        "sircryptotips",
+        "blockchainchick",
+        "georgegammon",
+        "learningcrypto",
+        "1MarkMoss",
+        "AaronRDay",
+        "JacobKinge",
+        "kangoanywhere",
+        "theRealKiyosaki",
+        "PrepperCanadian",
+        "DollarVigilante",
+        "PeterSchiff",
+        "RayDalio",
+        "adamseconomics",
+        "thecoastguy"
     ],
-    "refresh_seconds": 300
+    "refresh_seconds": 1800,
+    "quantifier_threshold": 80,
+    "emojis_enabled": true,
+    "reply_to_replies": false,
+    "ignore_pinned": true,
+    "reply_latency_minutes": 10,
+    "check_previous_replies": true,
+    "headless_browser": true,
+    "gui_refresh_seconds": 300,
+    "ai_model": "gpt-4o",
+    "nitter_mirrors": [
+        "https://nitter.privacydev.net",
+        "https://xcancel.com",
+        "https://nitter.poast.org",
+        "https://nitter.cz"
+    ],
+    "browser_timeout_seconds": 30,
+    "verification_wait_seconds": 15,
+    "use_x_dot_com": true,
+    "x_dot_com_timeout_seconds": 60,
+    "use_browser_replier": true,
+    "scrape_with_replies": true,
+    "x_dot_com_base_url": "https://x.com",
+    "workflow_mode": "draft",
+    "browser_user_data_dir": "data/browser_session",
+    "last_successful_source": "https://nitter.poast.org",
+    "last_successful_nitter_mirror": "https://nitter.poast.org"
 }
-
