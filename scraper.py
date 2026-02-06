@@ -44,7 +44,6 @@ async def scrape_x_dot_com(handle, headless=True, timeout=60000):
     with_replies = cfg.get("scrape_with_replies", False)
     suffix = "/with_replies" if with_replies else ""
     url = f"{base_url}/{handle}{suffix}"
-    print(f"X.com: Scraping {handle} via {url}...")
     
     async with async_playwright() as p:
         user_data_dir = cfg.get("browser_user_data_dir", "data/browser_session")
@@ -67,7 +66,6 @@ async def scrape_x_dot_com(handle, headless=True, timeout=60000):
                 close_btn = await page.query_selector('div[role="dialog"] div[aria-label="Close"]')
                 if close_btn:
                     await close_btn.click()
-                    print("X.com: Closed blocking modal.")
             except: pass
 
             # LOGIN DETECTION
@@ -78,7 +76,7 @@ async def scrape_x_dot_com(handle, headless=True, timeout=60000):
                            not is_logged_in
 
             if login_needed:
-                print(f"X.com: Login required for {handle}. (Current URL: {page.url})")
+                print(f"  🔑 Login required for {handle}...")
                 if "/login" not in page.url:
                     await page.goto("https://x.com/i/flow/login", wait_until="networkidle")
                 
@@ -96,7 +94,7 @@ async def scrape_x_dot_com(handle, headless=True, timeout=60000):
                 # Check for "Try again later"
                 page_text = await page.content()
                 if any(k in page_text for k in ["Could not log you in now", "Please try again later", "suspicious activity"]):
-                     print("X.com: Blocked by 'Try again later' or suspicious activity detection. Aborting X.")
+                     print("  ⚠️ X.com: Blocked by security/suspicion detection.")
                      return False, True
 
                 # Step 2: Password
@@ -109,7 +107,7 @@ async def scrape_x_dot_com(handle, headless=True, timeout=60000):
                     if login_btn: await login_btn.click()
                     else: await page.keyboard.press("Enter")
                 except:
-                    print(f"X.com: Password field didn't appear for {handle}. (URL: {page.url})")
+                    print(f"  ❌ Password field didn't appear for {handle}.")
                     return False, False
                 
                 await page.wait_for_timeout(5000)
@@ -120,7 +118,7 @@ async def scrape_x_dot_com(handle, headless=True, timeout=60000):
             try:
                 await page.wait_for_selector('article[data-testid="tweet"]', timeout=20000)
             except:
-                print(f"X.com: No tweets found for {handle}.")
+                print(f"  ❓ No tweets found for {handle}.")
                 return False, False
             
             await page.mouse.wheel(0, 500)
@@ -153,9 +151,9 @@ async def scrape_x_dot_com(handle, headless=True, timeout=60000):
                 
                 if not post_id: continue
 
-                # STOP IF ALREADY SCRAPED (assuming chronological order after pinned)
+                # STOP IF ALREADY SCRAPED
                 if not is_pinned and str(post_id) in existing_ids:
-                    print(f"X.com: Reached already scraped post {post_id} for {handle}. Stopping scan.")
+                    print(f"  🛑 Reached already scraped post {post_id}. Stopping.")
                     break
 
                 # Content
@@ -190,9 +188,9 @@ async def scrape_x_dot_com(handle, headless=True, timeout=60000):
 
                 if post_id and content:
                     status = ""
-                    if is_pinned: status += "[PINNED] "
-                    if is_reply: status += "[REPLY] "
-                    print(f"Found post {post_id}: {status}{content[:50]}...")
+                    if is_pinned: status += " [📌 PINNED]"
+                    if is_reply: status += " [↩️ REPLY]"
+                    print(f"  ✅ Post {post_id}: {status} {content[:40]}... (Posted: {posted_at})")
                     add_post(post_id, handle, content, score=0, is_reply=is_reply, is_pinned=is_pinned,
                              has_image=has_image, has_video=has_video, has_link=has_link, link_url=link_url, posted_at=posted_at)
                     update_config_source("https://x.com")
@@ -200,13 +198,12 @@ async def scrape_x_dot_com(handle, headless=True, timeout=60000):
                     scraped_count += 1
                 
                 if scraped_count >= 10:
-                    print(f"X.com: Reached max scan limit (10) for {handle}.")
                     break
             
             return found_any, False
             
         except Exception as e:
-            print(f"X.com error for {handle}: {e}")
+            print(f"  ❌ X.com error: {e}")
             return False, False
         finally:
             try: await context.close()
@@ -224,43 +221,42 @@ async def scrape_handle(handle, mirror=None, skip_x=False):
     with_replies = cfg.get("scrape_with_replies", False)
     nitter_suffix = "?replies=on" if with_replies else "?replies=off"
     
-    # 1. Try the prioritized source first
-    prioritized_successful = False
     blocked = False
-    
     source_to_try = mirror if mirror else last_source
     
+    # 1. Try the prioritized source first
     if source_to_try == "https://x.com" and not skip_x and use_x:
+        print(f"🐦 Attempting X.com (prioritized) for {handle}...")
         success, blocked = await scrape_x_dot_com(handle, 
                                         headless=cfg.get("headless_browser", True), 
                                         timeout=cfg.get("x_dot_com_timeout_seconds", 60) * 1000)
         if success:
             update_handle_check(handle)
             return True, blocked
-        print(f"X.com (prioritized) failed for {handle}, trying Nitter fallback...")
+        print(f"  🔄 X.com prioritized failed for {handle}, trying Nitter fallback...")
     elif source_to_try.startswith("http") and source_to_try != "https://x.com":
+        print(f"🛡️ Attempting Nitter mirror {source_to_try} (prioritized) for {handle}...")
         success, _ = await scrape_nitter(handle, source_to_try, cfg, nitter_suffix)
         if success:
             update_handle_check(handle)
             return True, False
-        print(f"Nitter mirror {source_to_try} (prioritized) failed for {handle}, checking alternatives...")
+        print(f"  🔄 Nitter prioritized {source_to_try} failed, checking alternatives...")
 
     # 2. Sequential fallback if prioritized source failed
     if not skip_x and use_x and source_to_try != "https://x.com":
+        print(f"🐦 Falling back to X.com for {handle}...")
         success, blocked = await scrape_x_dot_com(handle, 
                                         headless=cfg.get("headless_browser", True), 
                                         timeout=cfg.get("x_dot_com_timeout_seconds", 60) * 1000)
         if success:
             update_handle_check(handle)
             return True, blocked
-        print(f"X.com fallback failed for {handle}, trying alternate mirrors...")
+        print(f"  🔄 X.com fallback failed for {handle}, trying alternate mirrors...")
 
     # Try remaining Nitter mirrors
-    # Filter out the source_to_try if it was a Nitter mirror and already failed
     other_mirrors = [m for m in mirrors if m != source_to_try]
     random.shuffle(other_mirrors)
 
-    # If the prioritized source was a Nitter mirror and failed, try other mirrors
     for m in other_mirrors:
         success, _ = await scrape_nitter(handle, m, cfg, nitter_suffix)
         if success:
@@ -271,7 +267,7 @@ async def scrape_handle(handle, mirror=None, skip_x=False):
 
 async def scrape_nitter(handle, mirror, cfg, suffix=""):
     url = f"{mirror}/{handle}{suffix}"
-    print(f"Scraping {handle} via {mirror}...")
+    print(f"🛡️ Scraping {handle} via {mirror}...")
     
     async with async_playwright() as p:
         browser = await p.firefox.launch(headless=cfg.get("headless_browser", True))
@@ -284,7 +280,7 @@ async def scrape_nitter(handle, mirror, cfg, suffix=""):
             # Anti-bot
             title = await page.title()
             if "Verifying" in title or "Cloudflare" in title:
-                print(f"Negotiating anti-bot on {mirror}...")
+                print(f"  ⏳ Negotiating anti-bot on {mirror}...")
                 await page.wait_for_timeout(5000)
                 try: await page.wait_for_selector(".timeline-item", timeout=15000)
                 except:
@@ -294,7 +290,6 @@ async def scrape_nitter(handle, mirror, cfg, suffix=""):
 
             try: await page.wait_for_selector(".timeline-item", timeout=10000)
             except:
-                print(f"No timeline on {mirror}.")
                 return False, False
 
             existing_ids = get_existing_post_ids()
@@ -313,7 +308,7 @@ async def scrape_nitter(handle, mirror, cfg, suffix=""):
                 # Meta
                 is_pinned = bool(await tweet.query_selector(".pinned"))
                 if not is_pinned and str(post_id) in existing_ids:
-                    print(f"Nitter: Reached already scraped post {post_id} for {handle}. Stopping scan.")
+                    print(f"  🛑 Reached already scraped post {post_id}. Stopping.")
                     break
 
                 content_el = await tweet.query_selector(".tweet-content")
@@ -324,7 +319,6 @@ async def scrape_nitter(handle, mirror, cfg, suffix=""):
                 posted_at = None
                 date_el = await tweet.query_selector(".tweet-date a")
                 if date_el:
-                    # title often contains "Feb 6, 2026 · 10:10:10 AM UTC"
                     posted_at = await date_el.get_attribute("title")
                 
                 if not posted_at:
@@ -351,9 +345,9 @@ async def scrape_nitter(handle, mirror, cfg, suffix=""):
 
                 if post_id and content:
                     status = ""
-                    if is_pinned: status += "[PINNED] "
-                    if is_reply: status += "[REPLY] "
-                    print(f"Found post {post_id}: {status}{content[:50]}...")
+                    if is_pinned: status += " [📌 PINNED]"
+                    if is_reply: status += " [↩️ REPLY]"
+                    print(f"  ✅ Post {post_id}: {status} {content[:40]}... (Posted: {posted_at})")
                     add_post(post_id, handle, content, score=0, is_reply=is_reply, is_pinned=is_pinned,
                              has_image=has_image, has_video=has_video, has_link=has_link, link_url=link_url, posted_at=posted_at)
                     update_config_source(mirror)
@@ -361,12 +355,11 @@ async def scrape_nitter(handle, mirror, cfg, suffix=""):
                     scraped_count += 1
                 
                 if scraped_count >= 10:
-                    print(f"Nitter: Reached max scan limit (10) for {handle}.")
                     break
             
             return found_any, False
         except Exception as e:
-            print(f"Nitter error for {handle}: {e}")
+            print(f"  ❌ Nitter error for {handle}: {e}")
             return False, False
         finally:
             try:
@@ -380,14 +373,18 @@ async def main():
     handles = cfg.get("handles", [])
     skip_x_remaining = False
     
+    print(f"🚀 Starting Hybrid Scraper for {len(handles)} handles...")
     for handle in handles:
+        print(f"\n🔍 Processing @{handle}...")
         success, blocked = await scrape_handle(handle, skip_x=skip_x_remaining)
-        if blocked: skip_x_remaining = True
+        if blocked: 
+            print("  ⚠️ X.com appears blocked for this session. Switching to Nitter fallback for remaining handles.")
+            skip_x_remaining = True
         if not success:
-            print(f"Retrying {handle}...")
+            print(f"  🔄 Retrying {handle} once with alternate sources...")
             await scrape_handle(handle, skip_x=True)
             
-    print("\nScraper completed.")
+    print("\n🏁 Scraper process completed.")
 
 if __name__ == "__main__":
     asyncio.run(main())

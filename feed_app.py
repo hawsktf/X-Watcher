@@ -41,19 +41,13 @@ def get_posts():
     def sort_key(x):
         dt = x.get('dt_obj')
         db_id = x.get('post_id', '0')
-        
-        # Primary: Timestamp
         ts = dt.timestamp() if dt else 0
-        
-        # Secondary: Numeric ID (Twitter IDs are chronological Snowflakes)
         try:
             numeric_id = int(db_id)
         except:
             numeric_id = 0
-            
         return (ts, numeric_id)
 
-    # Reverse=True for newest first
     posts.sort(key=sort_key, reverse=True)
     return posts
 

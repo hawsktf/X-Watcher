@@ -95,7 +95,7 @@ def add_post(post_id, handle, content, score=0, is_reply=False, is_pinned=False,
         posts.sort(key=csv_sort_key, reverse=True)
 
         with open(POSTS_CSV, 'w', newline='') as f:
-            writer = csv.DictReader(f, fieldnames=fieldnames, quoting=csv.QUOTE_ALL)
+            writer = csv.DictWriter(f, fieldnames=fieldnames, quoting=csv.QUOTE_ALL)
             writer.writeheader()
             writer.writerows(posts)
         return True
