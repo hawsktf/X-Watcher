@@ -108,65 +108,39 @@ def add_post(post_id, handle, content, score=0, is_reply=False, is_pinned=False,
     # Try to normalize posted_at early if it is a simple date
     # This helps with alphabetical sort if we still use it (though feed_app fixes it)
     
-    posts = []
-    exists = False
+    # Optimized: Check existence first, then append.
+    # No sorting on write.
     fieldnames = ["post_id", "handle", "content", "scraped_at", "posted_at", "score", "is_reply", "is_pinned", "has_image", "has_video", "has_link", "link_url", "media_url", "is_retweet", "retweet_source"]
     
-    if os.path.exists(POSTS_CSV):
-        with open(POSTS_CSV, 'r', newline='') as f:
-            reader = csv.DictReader(f)
-            fieldnames = reader.fieldnames or fieldnames
-            for row in reader:
-                if row['post_id'] == str(post_id):
-                    exists = True
-                posts.append(row)
+    existing_ids = get_existing_post_ids()
+    if str(post_id) in existing_ids:
+        return False
 
-    if not exists:
-        new_row = {
-            "post_id": post_id,
-            "handle": handle,
-            "content": content,
-            "scraped_at": now.isoformat(), # Use full ISO for better debugging
-            "posted_at": posted_at,
-            "score": score,
-            "is_reply": is_reply,
-            "is_pinned": is_pinned,
-            "has_image": has_image,
-            "has_video": has_video,
-            "has_link": has_link,
-            "link_url": link_url,
-            "media_url": media_url,
-            "is_retweet": is_retweet,
-            "retweet_source": retweet_source
-        }
-        posts.append(new_row)
+    new_row = {
+        "post_id": post_id,
+        "handle": handle,
+        "content": content,
+        "scraped_at": now.isoformat(),
+        "posted_at": posted_at,
+        "score": score,
+        "is_reply": is_reply,
+        "is_pinned": is_pinned,
+        "has_image": has_image,
+        "has_video": has_video,
+        "has_link": has_link,
+        "link_url": link_url,
+        "media_url": media_url,
+        "is_retweet": is_retweet,
+        "retweet_source": retweet_source
+    }
+    
+    # Append to file
+    with open(POSTS_CSV, 'a', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames, quoting=csv.QUOTE_ALL)
+        # Ensure we don't write header here assuming it exists (init_db handles creation)
+        writer.writerow(new_row)
         
-        # PURE CHRONOLOGICAL SORT BY ID (Snowflake) as a fallback, but we should parse dates
-        # Let's use a smarter sort value for the CSV itself
-        from dateutil import parser as dt_parser
-        def csv_sort_key(x):
-            try:
-                # Clean and parse for sorting
-                clean = x.get('posted_at', '').replace(' · ', ' ').strip()
-                dt = dt_parser.parse(clean or '1970-01-01')
-                ts = dt.timestamp()
-            except:
-                ts = 0
-            
-            try:
-                pid = int(x.get('post_id', 0))
-            except:
-                pid = 0
-            return (ts, pid)
-
-        posts.sort(key=csv_sort_key, reverse=True)
-
-        with open(POSTS_CSV, 'w', newline='') as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames, quoting=csv.QUOTE_ALL)
-            writer.writeheader()
-            writer.writerows(posts)
-        return True
-    return False
+    return True
 
 def update_post_score(post_id, score):
     rows = []
@@ -183,8 +157,8 @@ def update_post_score(post_id, score):
                 rows.append(row)
     
     if updated:
-        # SORT BY POSTED_AT DESCENDING EVEN ON UPDATE
-        rows.sort(key=lambda x: x.get('posted_at', ''), reverse=True)
+        # Optimized: No sort on update, just rewrite (CSV limitation)
+        # rows.sort(key=lambda x: x.get('posted_at', ''), reverse=True) 
         with open(POSTS_CSV, 'w', newline='') as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames, quoting=csv.QUOTE_ALL)
             writer.writeheader()

@@ -230,6 +230,21 @@
             }
         }
 
+        .score-badge {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 14px;
+            color: #fff;
+            margin-left: auto;
+            flex-shrink: 0;
+            border: 2px solid var(--border-color);
+        }
+
         /* Animations */
         .tweet-card {
             animation: fadeIn 0.4s ease-out backwards;
@@ -286,6 +301,13 @@
                 const isReply = post.is_reply === 'True' || post.is_reply === '1' || post.is_reply === true;
                 const isPinned = post.is_pinned === 'True' || post.is_pinned === '1' || post.is_pinned === true;
 
+                // Score logic
+                const score = parseInt(post.score) || 0;
+                let scoreColor = '#71767b'; // grey (0 or low)
+                if (score >= 80) scoreColor = '#00ba7c'; // green (high)
+                else if (score >= 50) scoreColor = '#ffd400'; // yellow (med)
+                else if (score > 0) scoreColor = '#f91880'; // pink/red (low but nonzero)
+
                 // Format relative time or keep raw if parsing fails
                 const dateRaw = post.posted_at || post.scraped_at;
 
@@ -305,6 +327,9 @@
                                     ${isPinned ? '<span class="badge pinned">📌 Pinned</span>' : ''}
                                     ${isReply ? '<span class="badge reply">↩️ Reply</span>' : ''}
                                 </div>
+                            </div>
+                            <div class="score-badge" style="background-color: ${scoreColor};" title="Score: ${score}">
+                                ${score}
                             </div>
                         </div>
                         <div class="tweet-content">${post.content}</div>
