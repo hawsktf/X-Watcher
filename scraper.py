@@ -39,7 +39,7 @@ async def scrape_x_dot_com(handle, headless=True, timeout=60000):
     
     if not user or user == "YOUR_USERNAME":
         print("X.com: No credentials in .env. Skipping.")
-        return False, False, 0
+        return False, False, 0, 0
 
     with open("config.json") as f:
         cfg = json.load(f)
@@ -99,7 +99,7 @@ async def scrape_x_dot_com(handle, headless=True, timeout=60000):
                 page_text = await page.content()
                 if any(k in page_text for k in ["Could not log you in now", "Please try again later", "suspicious activity"]):
                      print("  ⚠️ X.com: Blocked by security detection.")
-                     return False, True, 0
+                     return False, True, 0, 0
 
                 # Step 2: Password
                 try:
@@ -112,7 +112,7 @@ async def scrape_x_dot_com(handle, headless=True, timeout=60000):
                     else: await page.keyboard.press("Enter")
                 except:
                     print(f"  ❌ Password field didn't appear for {handle}.")
-                    return False, False, 0
+                    return False, False, 0, 0
                 
                 await page.wait_for_timeout(5000)
                 await page.goto(url, wait_until="networkidle")
@@ -124,13 +124,14 @@ async def scrape_x_dot_com(handle, headless=True, timeout=60000):
             except:
                 print(f"  ❓ No tweets found for {handle}.")
                 # If we're on the page and it loads but no tweets, we still consider it a successful check
-                return True, False, 0
+                return True, False, 0, 0
             
             await page.mouse.wheel(0, 500)
             await page.wait_for_timeout(3000)
 
             tweets = await page.query_selector_all('article[data-testid="tweet"]')
             scraped_count = 0
+            new_count = 0
             for tweet in tweets:
                 # Basic Promoted Check
                 if await tweet.query_selector('path[d*="M19.498 3h-15c-1.381 0-2.5 1.119-2.5 2.5v13"]'): continue
@@ -158,7 +159,9 @@ async def scrape_x_dot_com(handle, headless=True, timeout=60000):
                 # STOP IF ALREADY SCRAPED
                 if not is_pinned and str(post_id) in existing_ids:
                     print(f"  🛑 Reached already scraped post {post_id}. Stopping.")
-                    return True, False, scraped_count
+                    return True, False, scraped_count, new_count
+
+                # Content
 
                 # Content
                 content_el = await tweet.query_selector('div[data-testid="tweetText"]')
@@ -168,6 +171,16 @@ async def scrape_x_dot_com(handle, headless=True, timeout=60000):
                 # Media and Links
                 has_image = bool(await tweet.query_selector('div[data-testid="tweetPhoto"]'))
                 has_video = bool(await tweet.query_selector('div[data-testid="videoPlayer"]'))
+                media_url = ""
+                
+                if has_image:
+                    img_el = await tweet.query_selector('div[data-testid="tweetPhoto"] img')
+                    if img_el:
+                        media_url = await img_el.get_attribute("src")
+                elif has_video:
+                    video_el = await tweet.query_selector('div[data-testid="videoPlayer"] video')
+                    if video_el:
+                        media_url = await video_el.get_attribute("src")
                 
                 link_url = ""
                 has_link = False
@@ -181,37 +194,49 @@ async def scrape_x_dot_com(handle, headless=True, timeout=60000):
                         content = content.replace(inner_txt, "").strip()
                         break
 
+                # Retweet Detection
+                is_retweet = False
+                retweet_source = ""
+                social_c = await tweet.query_selector('div[data-testid="socialContext"]')
+                if social_c:
+                    t = await social_c.inner_text()
+                    if "Retweeted" in t:
+                        is_retweet = True
+                        # Often the handle is in the socialContext or we can infer it
+                        retweet_source = t.replace(" Retweeted", "").strip()
+                
                 # Reply Detection
                 reply_context = await tweet.query_selector('div[data-testid="replyContext"]')
                 is_reply = bool(reply_context)
-                if not is_reply:
-                    social_c = await tweet.query_selector('div[data-testid="socialContext"]')
-                    if social_c:
-                        t = await social_c.inner_text()
-                        if "Replying to" in t: is_reply = True
+                if not is_reply and social_c:
+                    t = await social_c.inner_text()
+                    if "Replying to" in t: is_reply = True
 
                 if post_id and content:
                     status = ""
                     if is_pinned: status += " [📌 PINNED]"
                     if is_reply: status += " [↩️ REPLY]"
                     print(f"  ✅ Post {post_id}: {status} {content[:40]}... (Posted: {posted_at})")
-                    add_post(post_id, handle, content, score=0, is_reply=is_reply, is_pinned=is_pinned,
-                             has_image=has_image, has_video=has_video, has_link=has_link, link_url=link_url, posted_at=posted_at)
+                    is_new = add_post(post_id, handle, content, score=0, is_reply=is_reply, is_pinned=is_pinned,
+                             has_image=has_image, has_video=has_video, has_link=has_link, link_url=link_url, 
+                             media_url=media_url, is_retweet=is_retweet, retweet_source=retweet_source, posted_at=posted_at)
+                    if is_new:
+                        new_count += 1
                     update_config_source("https://x.com")
                     scraped_count += 1
                 
                 if scraped_count >= 10:
                     break
             
-            return True, False, scraped_count
+            return True, False, scraped_count, new_count
             
         except Exception as e:
             print(f"  ❌ X.com error: {e}")
-            return False, False, scraped_count
+            return False, False, scraped_count, new_count
         finally:
             try: await context.close()
             except: pass
-    return False, False, 0
+    return False, False, 0, 0
 
 async def scrape_handle(handle, mirror=None, skip_x=False):
     with open("config.json") as f:
@@ -231,11 +256,11 @@ async def scrape_handle(handle, mirror=None, skip_x=False):
     if source_to_try == "https://x.com" and not skip_x and use_x:
         start_t = time.time()
         print(f"🐦 Attempting X.com (prioritized) for {handle}...")
-        success, blocked, count = await scrape_x_dot_com(handle, 
+        success, blocked, count, new_count = await scrape_x_dot_com(handle, 
                                         headless=cfg.get("headless_browser", True), 
                                         timeout=cfg.get("x_dot_com_timeout_seconds", 60) * 1000)
         latency = time.time() - start_t
-        log_scraper_performance("x.com", handle, success, latency, count)
+        log_scraper_performance("x.com", handle, success, latency, count, new_count)
         
         if success:
             update_handle_check(handle)
@@ -244,9 +269,9 @@ async def scrape_handle(handle, mirror=None, skip_x=False):
     elif source_to_try.startswith("http") and source_to_try != "https://x.com":
         start_t = time.time()
         print(f"🛡️ Attempting Nitter mirror {source_to_try} (prioritized) for {handle}...")
-        success, _, count = await scrape_nitter(handle, source_to_try, cfg, nitter_suffix)
+        success, _, count, new_count = await scrape_nitter(handle, source_to_try, cfg, nitter_suffix)
         latency = time.time() - start_t
-        log_scraper_performance(source_to_try, handle, success, latency, count)
+        log_scraper_performance(source_to_try, handle, success, latency, count, new_count)
         
         if success:
             update_handle_check(handle)
@@ -257,11 +282,11 @@ async def scrape_handle(handle, mirror=None, skip_x=False):
     if not skip_x and use_x and source_to_try != "https://x.com":
         start_t = time.time()
         print(f"🐦 Falling back to X.com for {handle}...")
-        success, blocked, count = await scrape_x_dot_com(handle, 
+        success, blocked, count, new_count = await scrape_x_dot_com(handle, 
                                         headless=cfg.get("headless_browser", True), 
                                         timeout=cfg.get("x_dot_com_timeout_seconds", 60) * 1000)
         latency = time.time() - start_t
-        log_scraper_performance("x.com", handle, success, latency, count)
+        log_scraper_performance("x.com", handle, success, latency, count, new_count)
         
         if success:
             update_handle_check(handle)
@@ -274,9 +299,9 @@ async def scrape_handle(handle, mirror=None, skip_x=False):
 
     for m in other_mirrors:
         start_t = time.time()
-        success, _, count = await scrape_nitter(handle, m, cfg, nitter_suffix)
+        success, _, count, new_count = await scrape_nitter(handle, m, cfg, nitter_suffix)
         latency = time.time() - start_t
-        log_scraper_performance(m, handle, success, latency, count)
+        log_scraper_performance(m, handle, success, latency, count, new_count)
         
         if success:
             update_handle_check(handle)
@@ -289,6 +314,7 @@ async def scrape_nitter(handle, mirror, cfg, suffix=""):
     print(f"🛡️ Scraping {handle} via {mirror}...")
     
     scraped_count = 0
+    new_count = 0
     async with async_playwright() as p:
         try:
             browser = await p.firefox.launch(headless=cfg.get("headless_browser", True))
@@ -306,11 +332,11 @@ async def scrape_nitter(handle, mirror, cfg, suffix=""):
                 except:
                     await page.reload(wait_until="domcontentloaded")
                     await page.wait_for_timeout(3000)
-                    if not await page.query_selector(".timeline-item"): return False, False, 0
+                    if not await page.query_selector(".timeline-item"): return False, False, 0, 0
 
             try: await page.wait_for_selector(".timeline-item", timeout=10000)
             except:
-                return False, False, 0
+                return False, False, 0, 0
 
             existing_ids = get_existing_post_ids()
             tweets = await page.query_selector_all(".timeline-item")
@@ -328,7 +354,7 @@ async def scrape_nitter(handle, mirror, cfg, suffix=""):
                 if not is_pinned and str(post_id) in existing_ids:
                     print(f"  🛑 Reached already scraped post {post_id}. Stopping.")
                     # Return True because we successfully reached and verified the timeline
-                    return True, False, scraped_count
+                    return True, False, scraped_count, new_count
 
                 content_el = await tweet.query_selector(".tweet-content")
                 if not content_el: continue
@@ -348,8 +374,33 @@ async def scrape_nitter(handle, mirror, cfg, suffix=""):
                 if is_pinned and cfg.get("ignore_pinned", False): continue
 
                 is_reply = bool(await tweet.query_selector(".replying-to"))
+                
+                retweet_indicator = await tweet.query_selector(".retweet-header")
+                is_retweet = bool(retweet_indicator)
+                retweet_source = ""
+                if is_retweet:
+                    retweet_source_el = await retweet_indicator.query_selector("a")
+                    if retweet_source_el:
+                        retweet_source = (await retweet_source_el.inner_text()).strip()
+
                 has_image = bool(await tweet.query_selector(".attachment.image"))
                 has_video = bool(await tweet.query_selector(".attachment.video"))
+                media_url = ""
+                
+                if has_image:
+                    img_el = await tweet.query_selector(".attachment.image img")
+                    if img_el:
+                        media_url = await img_el.get_attribute("src")
+                        if media_url and media_url.startswith("/"):
+                            media_url = mirror.rstrip("/") + media_url
+                elif has_video:
+                    video_source = await tweet.query_selector(".attachment.video video source")
+                    if not video_source:
+                        video_source = await tweet.query_selector(".attachment.video video")
+                    if video_source:
+                        media_url = await video_source.get_attribute("src")
+                        if media_url and media_url.startswith("/"):
+                            media_url = mirror.rstrip("/") + media_url
                 
                 # Links
                 link_url = ""
@@ -366,23 +417,27 @@ async def scrape_nitter(handle, mirror, cfg, suffix=""):
                     status = ""
                     if is_pinned: status += " [📌 PINNED]"
                     if is_reply: status += " [↩️ REPLY]"
+                    if is_retweet: status += f" [🔄 RT from {retweet_source}]"
                     print(f"  ✅ Post {post_id}: {status} {content[:40]}... (Posted: {posted_at})")
-                    add_post(post_id, handle, content, score=0, is_reply=is_reply, is_pinned=is_pinned,
-                             has_image=has_image, has_video=has_video, has_link=has_link, link_url=link_url, posted_at=posted_at)
+                    is_new = add_post(post_id, handle, content, score=0, is_reply=is_reply, is_pinned=is_pinned,
+                             has_image=has_image, has_video=has_video, has_link=has_link, link_url=link_url, 
+                             media_url=media_url, is_retweet=is_retweet, retweet_source=retweet_source, posted_at=posted_at)
+                    if is_new:
+                        new_count += 1
                     update_config_source(mirror)
                     scraped_count += 1
                 
                 if scraped_count >= 10:
                     break
             
-            return True, False, scraped_count
+            return True, False, scraped_count, new_count
         except Exception as e:
             print(f"  ❌ Nitter error for {handle}: {e}")
-            return False, False, scraped_count
+            return False, False, scraped_count, new_count
         finally:
             try: await browser.close()
             except: pass
-    return False, False, 0
+    return False, False, 0, 0
 
 async def main():
     # Ensure DB is initialized

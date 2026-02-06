@@ -40,11 +40,15 @@ def run_quantifier():
         post_id = row['post_id']
         handle = row['handle']
         content = row['content']
-        
-        score = qualify_post_content(content, personality)
-        print(f"Quantifying {handle} [{post_id}]: Score {score}")
-        
-        update_post_score(post_id, score)
+        current_score = int(row.get('score', 0))
+
+        if current_score == 0:
+            score = qualify_post_content(content, personality)
+            print(f"Quantifying {handle} [{post_id}]: New Score {score}")
+            update_post_score(post_id, score)
+        else:
+            # Skip already quantified posts
+            pass
 
 if __name__ == "__main__":
     run_quantifier()

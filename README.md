@@ -68,6 +68,8 @@ The easiest way to run the agent is using the provided helper script, which ensu
 ```
 To run **only** the scraper: `./run_app.sh --scraper-only`
 
+To automatically score posts after scraping: `./run_app.sh --quantifier`
+
 ### Alternative: Direct Execution
 If you prefer direct execution, ensure you are using the virtual environment interpreter:
 

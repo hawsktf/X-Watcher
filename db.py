@@ -26,7 +26,7 @@ def init_db():
         with open(POSTS_CSV, 'w', newline='') as f:
             writer = csv.writer(f, quoting=csv.QUOTE_ALL)
             # Added score, is_reply, is_pinned + media flags + link_url
-            writer.writerow(["post_id", "handle", "content", "scraped_at", "posted_at", "score", "is_reply", "is_pinned", "has_image", "has_video", "has_link", "link_url"])
+            writer.writerow(["post_id", "handle", "content", "scraped_at", "posted_at", "score", "is_reply", "is_pinned", "has_image", "has_video", "has_link", "link_url", "media_url", "is_retweet", "retweet_source"])
     
     if not os.path.exists(POSTED_REPLIES_CSV):
         with open(POSTED_REPLIES_CSV, 'w', newline='') as f:
@@ -41,9 +41,66 @@ def init_db():
     if not os.path.exists(SCORECARD_CSV):
         with open(SCORECARD_CSV, 'w', newline='') as f:
             writer = csv.writer(f, quoting=csv.QUOTE_ALL)
-            writer.writerow(['timestamp', 'source', 'handle', 'success', 'latency_seconds', 'posts_scraped', 'error_message'])
+            writer.writerow(['timestamp', 'source', 'handle', 'success', 'latency_seconds', 'posts_scraped', 'new_posts_found', 'error_message'])
+    else:
+        # Migration: Add new_posts_found column if missing
+        with open(SCORECARD_CSV, 'r', newline='') as f:
+            reader = csv.reader(f)
+            header = next(reader, None)
+        
+        if header and 'new_posts_found' not in header:
+            print("Migrating scorecard.csv to include new_posts_found column...")
+            rows = []
+            with open(SCORECARD_CSV, 'r', newline='') as f:
+                reader = csv.reader(f)
+                rows = list(reader)
+            
+            if rows:
+                new_header = rows[0]
+                try:
+                    # Find insertion point before 'error_message' or at the end
+                    idx = new_header.index('error_message') if 'error_message' in new_header else len(new_header)
+                    new_header.insert(idx, 'new_posts_found')
+                    for i in range(1, len(rows)):
+                        rows[i].insert(idx, '0')
+                    
+                    with open(SCORECARD_CSV, 'w', newline='') as f:
+                        writer = csv.writer(f, quoting=csv.QUOTE_ALL)
+                        writer.writerows(rows)
+                except Exception as e:
+                    print(f"Migration error: {e}")
 
-def add_post(post_id, handle, content, score=0, is_reply=False, is_pinned=False, has_image=False, has_video=False, has_link=False, link_url="", posted_at=None):
+        # Migration for posts.csv
+        if os.path.exists(POSTS_CSV):
+            with open(POSTS_CSV, 'r', newline='') as f:
+                reader = csv.reader(f)
+                p_header = next(reader, None)
+            
+            if p_header:
+                new_cols = ['media_url', 'is_retweet', 'retweet_source']
+                cols_to_add = [c for c in new_cols if c not in p_header]
+                
+                if cols_to_add:
+                    print(f"Migrating posts.csv to include {', '.join(cols_to_add)} column(s)...")
+                    rows = []
+                    with open(POSTS_CSV, 'r', newline='') as f:
+                        reader = csv.reader(f)
+                        rows = list(reader)
+                    
+                    if rows:
+                        actual_header = rows[0]
+                        for c in cols_to_add:
+                            actual_header.append(c)
+                        
+                        for i in range(1, len(rows)):
+                            for _ in cols_to_add:
+                                rows[i].append('')
+                        
+                        with open(POSTS_CSV, 'w', newline='') as f:
+                            writer = csv.writer(f, quoting=csv.QUOTE_ALL)
+                            writer.writerows(rows)
+
+def add_post(post_id, handle, content, score=0, is_reply=False, is_pinned=False, has_image=False, has_video=False, has_link=False, link_url="", media_url="", is_retweet=False, retweet_source="", posted_at=None):
     now = datetime.utcnow()
     if not posted_at:
         posted_at = now.isoformat()
@@ -53,7 +110,7 @@ def add_post(post_id, handle, content, score=0, is_reply=False, is_pinned=False,
     
     posts = []
     exists = False
-    fieldnames = ["post_id", "handle", "content", "scraped_at", "posted_at", "score", "is_reply", "is_pinned", "has_image", "has_video", "has_link", "link_url"]
+    fieldnames = ["post_id", "handle", "content", "scraped_at", "posted_at", "score", "is_reply", "is_pinned", "has_image", "has_video", "has_link", "link_url", "media_url", "is_retweet", "retweet_source"]
     
     if os.path.exists(POSTS_CSV):
         with open(POSTS_CSV, 'r', newline='') as f:
@@ -77,7 +134,10 @@ def add_post(post_id, handle, content, score=0, is_reply=False, is_pinned=False,
             "has_image": has_image,
             "has_video": has_video,
             "has_link": has_link,
-            "link_url": link_url
+            "link_url": link_url,
+            "media_url": media_url,
+            "is_retweet": is_retweet,
+            "retweet_source": retweet_source
         }
         posts.append(new_row)
         
@@ -244,7 +304,7 @@ def get_existing_post_ids():
                 ids.add(row['post_id'])
     return ids
 
-def log_scraper_performance(source, handle, success, latency, posts_scraped=0, error_msg=""):
+def log_scraper_performance(source, handle, success, latency, posts_scraped=0, new_posts_found=0, error_msg=""):
     with open(SCORECARD_CSV, 'a', newline='') as f:
         writer = csv.writer(f, quoting=csv.QUOTE_ALL)
         writer.writerow([
@@ -254,5 +314,6 @@ def log_scraper_performance(source, handle, success, latency, posts_scraped=0, e
             success,
             f"{latency:.2f}",
             posts_scraped,
+            new_posts_found,
             error_msg
         ])

@@ -12,14 +12,20 @@ from db import init_db
 from scraper import main as run_scraper
 from brain import draft_replies
 from replier import process_replies
+from quantifier import run_quantifier
 
-def run_automation_loop(scraper_only=False):
+def run_automation_loop(scraper_only=False, run_quantifier_flag=False):
     """Main automation loop."""
     while True:
         try:
             print("\n--- Starting Scraper Cycle ---")
             asyncio.run(run_scraper())
             print("--- Scraper Cycle Complete ---")
+            
+            if run_quantifier_flag:
+                print("\n--- Starting Post Quantification ---")
+                run_quantifier()
+                print("--- Post Quantification Complete ---")
             
             if not scraper_only:
                 print("\n--- Starting Brain Drafting ---")
@@ -49,6 +55,7 @@ def run_automation_loop(scraper_only=False):
 def main():
     parser = argparse.ArgumentParser(description="X-Watcher Hybrid Agent")
     parser.add_argument("--scraper-only", "-s", action="store_true", help="Run only the scraper in the loop, skip brain and replier.")
+    parser.add_argument("--quantifier", "-q", action="store_true", help="Automatically run the quantifier after each scraper cycle.")
     args = parser.parse_args()
 
     print(f"Project X-Watcher: Starting Hybrid Agent{' (Scraper Only Mode)' if args.scraper_only else ''}...")
@@ -57,7 +64,7 @@ def main():
     # Start the automation loop in a daemon thread
     t = threading.Thread(
         target=run_automation_loop,
-        args=(args.scraper_only,),
+        args=(args.scraper_only, args.quantifier),
         daemon=True
     )
     t.start()
