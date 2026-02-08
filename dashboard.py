@@ -69,12 +69,12 @@ def run_quantifier_now():
 
 def run_brain_now():
     print("\nRunning Brain (Drafting)...")
-    subprocess.run([VENV_PYTHON, "brain.py"])
+    subprocess.run([VENV_PYTHON, "generator.py"])
     input("\nCompleted. Press Enter...")
 
 def run_replier_now():
     print("\nRunning Replier (Posting)...")
-    subprocess.run([VENV_PYTHON, "replier.py"])
+    subprocess.run([VENV_PYTHON, "poster.py"])
     input("\nCompleted. Press Enter...")
 
 def run_feed_now():

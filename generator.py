@@ -4,23 +4,8 @@ import os
 import csv
 import time
 from datetime import datetime, timezone
-from db import POSTS_CSV, REPLIES_CSV, get_existing_reply_post_ids, get_all_posts, update_post_score
+from db import POSTS_CSV, REPLIES_CSV, get_existing_reply_post_ids, get_all_posts, update_post_score, add_reply
 from quantifier import get_personality, get_ai_config, estimate_cost
-
-def add_pending_reply(post_id, reply_content, cost=0.0):
-    # Get max ID for auto-increment simulation
-    max_id = 0
-    if os.path.exists(REPLIES_CSV):
-        with open(REPLIES_CSV, 'r', newline='') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                try:
-                    max_id = max(max_id, int(row['id']))
-                except: pass
-            
-    with open(REPLIES_CSV, 'a', newline='') as f:
-        writer = csv.writer(f, quoting=csv.QUOTE_ALL)
-        writer.writerow([max_id + 1, post_id, reply_content, 'pending', datetime.now(timezone.utc).isoformat(), cost])
 
 def draft_reply_with_ai(content, persona, handle):
     cfg = get_ai_config()
@@ -54,19 +39,22 @@ def draft_reply_with_ai(content, persona, handle):
                 "Decentralization is not just a technology, it's a moral imperative."
             ]
         
-        return random.choice(options), 0.0  # No cost in test mode
+        return random.choice(options), "Using a pre-set thematic response for test mode.", 0.0, "Test-Template"
     
     # Production mode: use Gemini API
-    import google.generativeai as genai
+    # Production mode: use Google GenAI SDK
+    from google import genai
     api_key = os.getenv("GOOGLE_API_KEY")
+    if api_key:
+        api_key = api_key.split('#')[0].strip()
+        
     if not api_key:
         print("Error: GOOGLE_API_KEY not found.")
-        return None, 0.0
+        return None, None, 0.0, "Error"
 
-    genai.configure(api_key=api_key)
+    client = genai.Client(api_key=api_key)
     
-    model_name = cfg.get("drafter_model", "gemini-1.5-pro")
-    model = genai.GenerativeModel(model_name)
+    model_name = cfg.get("drafter_model", "gemini-2.5-pro")
 
     prompt = f"""
     You are an AI agent with the following persona:
@@ -84,31 +72,46 @@ def draft_reply_with_ai(content, persona, handle):
     Post Content:
     "{content}"
 
-    Return ONLY the reply text.
+    Return ONLY a JSON object:
+    {{
+      "reply": "the draft text",
+      "insight": "a 1-sentence analytical strategy for this reply"
+    }}
     """
 
     try:
-        response = model.generate_content(prompt)
-        text = response.text.strip().replace('"', '')
+        response = client.models.generate_content(model=model_name, contents=prompt)
+        raw_text = response.text.strip()
+        # Extract JSON if it's wrapped in backticks
+        if "```json" in raw_text:
+            raw_text = raw_text.split("```json")[1].split("```")[0].strip()
+        elif "```" in raw_text:
+            raw_text = raw_text.split("```")[1].strip()
+            
+        res = json.loads(raw_text)
+        text = res.get("reply", "").replace('"', '')
+        insight = res.get("insight", "No insight provided.")
         
-        input_tokens = model.count_tokens(prompt).total_tokens
-        output_tokens = model.count_tokens(text).total_tokens
+        input_tokens = client.models.count_tokens(model=model_name, contents=prompt).total_tokens
+        output_tokens = client.models.count_tokens(model=model_name, contents=raw_text).total_tokens
         cost = estimate_cost(model_name, input_tokens, output_tokens)
         
-        return text, cost
+        return text, insight, cost, model_name
     except Exception as e:
-        print(f"AI Error: {e}")
-        return None, 0.0
-def draft_replies():
+        print(f"AI Error parsing JSON: {e}")
+        # Fallback to simple text if JSON fails
+        return raw_text[:280], "Fallback due to parse error.", 0.0, "Error"
+
+def run_generator():
     with open("config.json") as f:
         cfg = json.load(f)
         
     mode = cfg.get("workflow_mode", "draft")
     if mode not in ["draft", "post"]:
-        print(f"Brain: Workflow mode is '{mode}'. Skipping drafting.")
+        print(f"Generator: Workflow mode is '{mode}'. Skipping drafting.")
         return
 
-    print(f"AI Brain: Drafting replies (Mode: {mode})...")
+    print(f"\n💡 Generator: Drafting replies (Mode: {mode})...")
     
     threshold = cfg.get("quantifier_threshold", 80)
     emojis_enabled = cfg.get("emojis_enabled", True)
@@ -124,6 +127,7 @@ def draft_replies():
             reader = csv.DictReader(f)
             posts_data = list(reader)
 
+    count = 0
     for row in posts_data:
         post_id = row['post_id']
         handle = row['handle']
@@ -149,20 +153,24 @@ def draft_replies():
         if score < threshold:
             continue
             
-        print(f"Drafting for {handle} (Score: {score})...")
+        print(f"  📝 Drafting reply for @{handle} (Score: {score})...")
         
-        reply, cost = draft_reply_with_ai(content, personality, handle)
+        reply, insight, cost, model_name = draft_reply_with_ai(content, personality, handle)
         
         if reply:
+            if insight:
+                print(f"  🧠 Strategy: {insight}")
             if emojis_enabled and "🔒" not in reply:
                  reply += " 🔒"
 
-            add_pending_reply(post_id, reply, cost)
-            print(f"Drafted: {reply} (Cost: ${cost:.5f})")
+            add_reply(post_id, handle, reply, status="pending", generation_model=model_name, cost=cost, insight=insight)
+            print(f"  ✅ Drafted: {reply[:50]}... (Cost: ${cost:.5f}) [{model_name}]")
+            count += 1
             time.sleep(2) # Rate limiting
+            
+    print(f"Generator: Drafted {count} new replies.")
 
 if __name__ == "__main__":
-    draft_replies()
-
-if __name__ == "__main__":
-    draft_replies()
+    from dotenv import load_dotenv
+    load_dotenv()
+    run_generator()

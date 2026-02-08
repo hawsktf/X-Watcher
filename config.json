@@ -59,10 +59,18 @@
     "check_previous_replies": true,
     "headless_browser": true,
     "gui_refresh_seconds": 300,
-    "test_mode": true,
-    "quantifier_model": "gemini-1.5-flash",
-    "drafter_model": "gemini-1.5-flash",
+    "test_mode": false,
+    "quantifier_model": "gemini-2.0-flash",
+    "drafter_model": "gemini-2.5-flash",
     "ai_models": {
+        "gemini-2.0-flash": {
+            "input_cost": 7.5e-05,
+            "output_cost": 0.0003
+        },
+        "gemini-2.5-pro": {
+            "input_cost": 0.00125,
+            "output_cost": 0.005
+        },
         "gemini-1.5-flash": {
             "input_cost": 7.5e-05,
             "output_cost": 0.0003
@@ -70,21 +78,13 @@
         "gemini-1.5-pro": {
             "input_cost": 0.00125,
             "output_cost": 0.005
-        },
-        "gemini-1.5-flash-8b": {
-            "input_cost": 3.75e-05,
-            "output_cost": 0.00015
-        },
-        "gemini-1.5-pro-002": {
-            "input_cost": 0.00125,
-            "output_cost": 0.005
         }
     },
     "nitter_mirrors": [
-        "https://nitter.privacydev.net",
+        "https://nitter.cz",
         "https://xcancel.com",
         "https://nitter.poast.org",
-        "https://nitter.cz"
+        "https://nitter.privacydev.net"
     ],
     "browser_timeout_seconds": 30,
     "verification_wait_seconds": 15,

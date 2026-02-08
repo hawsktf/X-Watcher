@@ -3,44 +3,48 @@ import time
 import asyncio
 import threading
 import argparse
+from datetime import datetime, timezone
 from dotenv import load_dotenv
 
 # Load .env globally
 load_dotenv()
 
 from db import init_db
-from scraper import main as run_scraper
-from brain import draft_replies
-from replier import process_replies
+from scraper import run_scraper
+from generator import run_generator
+from poster import run_poster as run_poster_process
 from quantifier import run_quantifier
 
 def run_automation_loop(scraper_only=False, run_quantifier_flag=False):
     """Main automation loop."""
     while True:
         try:
-            print("\n--- Starting Scraper Cycle ---")
+            print("\n" + "="*50)
+            print(f"🔄 STARTING CYCLE AT {datetime.now(timezone.utc).strftime('%H:%M:%S')} UTC")
+            print("="*50)
+
+            print("\n🚀 Starting Scraper Cycle ---")
             asyncio.run(run_scraper())
-            print("--- Scraper Cycle Complete ---")
+            print("✅ Scraper Cycle Complete ---")
             
-            if run_quantifier_flag:
-                print("\n--- Starting Post Quantification ---")
-                run_quantifier()
-                print("--- Post Quantification Complete ---")
+            # Run quantifier by default
+            print("\n🧠 Starting Post Quantification ---")
+            run_quantifier()
+            print("✅ Post Quantification Complete ---")
             
             if not scraper_only:
-                print("\n--- Starting Brain Drafting ---")
-                draft_replies()
-                print("--- Brain Drafting Complete ---")
+                print("\n🎨 Starting Generator (Creation) ---")
+                run_generator()
+                print("✅ Generator Complete ---")
                 
-                print("\n--- Starting Replier Process ---")
-                asyncio.run(process_replies())
-                print("--- Replier Process Complete ---")
+                print("\n📢 Starting Poster (Execution) ---")
+                asyncio.run(run_poster_process())
+                print("✅ Poster Complete ---")
             else:
-                print("\n--- Scraper Only Mode: Skipping Brain & Replier ---")
+                print("\n--- Scraper Only Mode: Skipping Generator & Poster ---")
             
         except Exception as e:
             print(f"Error in main loop: {e}")
-        
         # Sleep for the refresh interval
         try:
             with open("config.json") as f:

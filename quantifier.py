@@ -37,16 +37,19 @@ def qualify_post_with_ai(content, persona):
         return score, 0.0  # No cost in test mode
     
     # Production mode: use Gemini API
-    import google.generativeai as genai
+    # Production mode: use Google GenAI SDK
+    from google import genai
     api_key = os.getenv("GOOGLE_API_KEY")
+    if api_key:
+        api_key = api_key.split('#')[0].strip()
+    
     if not api_key:
         print("Error: GOOGLE_API_KEY not found.")
         return 0, 0.0
 
-    genai.configure(api_key=api_key)
+    client = genai.Client(api_key=api_key)
     
     model_name = cfg.get("quantifier_model", "gemini-1.5-flash")
-    model = genai.GenerativeModel(model_name)
 
     prompt = f"""
     You are an AI agent with the following persona:
@@ -65,14 +68,13 @@ def qualify_post_with_ai(content, persona):
     """
 
     try:
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(model=model_name, contents=prompt)
         text = response.text.strip()
         score = int(''.join(filter(str.isdigit, text)))
         
-        # Estimate usage (Gemini doesn't always return token counts in standard response obj easily in all versions, 
-        # so we'll approximate or use usage_metadata if available)
-        input_tokens = model.count_tokens(prompt).total_tokens
-        output_tokens = model.count_tokens(text).total_tokens
+        # Estimate usage
+        input_tokens = client.models.count_tokens(model=model_name, contents=prompt).total_tokens
+        output_tokens = client.models.count_tokens(model=model_name, contents=text).total_tokens
         cost = estimate_cost(model_name, input_tokens, output_tokens)
         
         return score, cost
@@ -81,10 +83,20 @@ def qualify_post_with_ai(content, persona):
         return 0, 0.0
 
 def run_quantifier():
-    print("AI Quantifier: Scoring posts with Gemini...")
+    cfg = get_ai_config()
+    reply_to_replies = cfg.get("reply_to_replies", False)
+    reply_to_reposts = cfg.get("reply_to_reposts", False)
+    threshold = cfg.get("quantifier_threshold", 80)
     
-    if not os.path.exists(POSTS_CSV):
-        print("No posts to quantify.")
+    print("\n🧠 AI Quantifier: Scoring posts with Gemini...")
+    
+    if not os.path.isabs(POSTS_CSV):
+        posts_path = os.path.join(os.getcwd(), POSTS_CSV)
+    else:
+        posts_path = POSTS_CSV
+
+    if not os.path.exists(posts_path):
+        print("  ℹ️ No posts to quantify.")
         return
 
     personality = get_personality()
@@ -95,8 +107,15 @@ def run_quantifier():
         posts_data = list(reader)
         fieldnames = reader.fieldnames
 
+    # Count unscored posts
+    unscored_count = sum(1 for row in posts_data if row.get('score', '') == '' or int(row.get('score', 0)) == 0)
+    
+    print(f"🧐 Quantification Start: {unscored_count} posts to be scored. Replies enabled: {reply_to_replies}, Reposts enabled: {reply_to_reposts}")
+
     # Check if we need to update rows
     updates = []
+    qualified_count = 0
+    processed_count = 0
     
     for row in posts_data:
         post_id = row['post_id']
@@ -114,13 +133,18 @@ def run_quantifier():
 
         if current_score == 0:
             score, cost = qualify_post_with_ai(content, personality)
-            print(f"Quantifying {handle} [{post_id}]: New Score {score} (Cost: ${cost:.5f})")
+            print(f"  📊 Scored @{handle}: {score} (Cost: ${cost:.5f})")
             
             row['score'] = score
             row['quantification_cost'] = cost
             
             # Rate limit protection (simple sleep)
             time.sleep(1)
+            
+        if int(row.get('score', 0)) >= threshold:
+            qualified_count += 1
+            
+        processed_count += 1
         
         # Always append the row (whether updated or not)
         updates.append(row)
@@ -134,6 +158,8 @@ def run_quantifier():
             writer = csv.DictWriter(f, fieldnames=fieldnames, quoting=csv.QUOTE_ALL)
             writer.writeheader()
             writer.writerows(updates)
+            
+    print(f"✅ Quantification Complete: {qualified_count} out of {processed_count} posts qualified (Score >= {threshold}).")
 
 if __name__ == "__main__":
     from dotenv import load_dotenv
