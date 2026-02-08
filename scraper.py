@@ -18,7 +18,6 @@ NITTER_MIRRORS_DEFAULT = [
     "https://nitter.poast.org",
     "https://nitter.cz",
 ]
-
 def update_config_source(source):
     try:
         if not source: return
@@ -29,6 +28,24 @@ def update_config_source(source):
             json.dump(cfg, f, indent=4)
     except Exception as e:
         print(f"Error updating config source: {e}")
+
+def demote_nitter_mirror(mirror):
+    try:
+        if not mirror: return
+        with open("config.json", "r") as f:
+            cfg = json.load(f)
+        
+        mirrors = cfg.get("nitter_mirrors", [])
+        if mirror in mirrors:
+            mirrors.remove(mirror)
+            mirrors.append(mirror) # Move to end
+            cfg["nitter_mirrors"] = mirrors
+            
+            with open("config.json", "w") as f:
+                json.dump(cfg, f, indent=4)
+            print(f"  📉 Demoted Nitter mirror: {mirror} (moved to end of list)")
+    except Exception as e:
+        print(f"Error demoting mirror {mirror}: {e}")
 
 async def scrape_x_dot_com(handle, headless=True, timeout=60000):
     user = os.getenv("TWITTER_USERNAME")
@@ -276,6 +293,9 @@ async def scrape_handle(handle, mirror=None, skip_x=False):
         if success:
             update_handle_check(handle)
             return True, False
+        
+        # Demote mirror on failure
+        demote_nitter_mirror(source_to_try)
         print(f"  🔄 Nitter prioritized {source_to_try} failed, checking alternatives...")
 
     # 2. Sequential fallback if prioritized source failed
@@ -306,6 +326,9 @@ async def scrape_handle(handle, mirror=None, skip_x=False):
         if success:
             update_handle_check(handle)
             return True, blocked
+        
+        # Demote mirror on failure
+        demote_nitter_mirror(m)
             
     return False, blocked
 

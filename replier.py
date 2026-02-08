@@ -87,14 +87,37 @@ async def post_reply_via_browser(post_id, handle, content, headless=True):
                 await page.wait_for_url("https://x.com/home", timeout=30000)
                 await page.goto(url, wait_until="networkidle")
 
-            # Click reply box
-            reply_box = await page.wait_for_selector('div[data-testid="tweetTextarea_0"]', timeout=20000)
+            # Robust Replier Selectors
+            selectors = [
+                'div[data-testid="tweetTextarea_0"]',
+                'div[role="textbox"][aria-label*="Post text"]',
+                'div[role="textbox"][aria-label*="Reply"]',
+                'div.public-DraftEditor-content'
+            ]
+            
+            reply_box = None
+            for selector in selectors:
+                try:
+                    reply_box = await page.wait_for_selector(selector, timeout=5000)
+                    if reply_box:
+                        print(f"Replier: Found reply box with selector: {selector}")
+                        break
+                except: continue
+
             if reply_box:
                 await reply_box.click()
-                await reply_box.fill(content)
+                await page.keyboard.type(content, delay=random.randint(50, 150))
                 
+                # Wait a bit before posting
+                await page.wait_for_timeout(random.randint(1000, 3000))
+
                 # Click Post button
                 post_btn = await page.query_selector('div[data-testid="tweetButtonInline"]')
+                if not post_btn:
+                    post_btn = await page.query_selector('button:has-text("Post")')
+                if not post_btn:
+                    post_btn = await page.query_selector('button:has-text("Reply")')
+
                 if post_btn:
                     await post_btn.click()
                     await page.wait_for_timeout(3000) # Wait for animation/sending
@@ -158,6 +181,14 @@ async def process_replies():
         handle = reply['handle']
         content = reply['reply_content']
         
+        # Test mode simulation
+        if cfg.get("test_mode", False):
+            print(f"Replier [TEST MODE]: Simulating browser reply to {handle} for post {post_id}...")
+            print(f"Replier [TEST MODE]: Content: {content}")
+            await asyncio.sleep(2) # Simulate work
+            mark_reply_posted(reply['id'])
+            continue
+
         success = False
         if use_browser:
             success = await post_reply_via_browser(post_id, handle, content, headless=headless)

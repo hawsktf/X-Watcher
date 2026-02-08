@@ -8,9 +8,27 @@ from datetime import datetime
 app = Flask(__name__)
 
 POSTS_CSV = "data/posts.csv"
+REPLIES_CSV = "data/pending_replies.csv"
+
+def get_pending_reply_map():
+    replies = {}
+    if os.path.exists(REPLIES_CSV):
+        try:
+            with open(REPLIES_CSV, 'r', newline='') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    if row['status'] == 'pending':
+                        replies[row['post_id']] = {
+                            "content": row['reply_content'],
+                            "cost": row.get('generation_cost', 0.0)
+                        }
+        except: pass
+    return replies
 
 def get_posts():
     posts = []
+    pending_map = get_pending_reply_map()
+    
     if os.path.exists(POSTS_CSV):
         try:
             with open(POSTS_CSV, 'r', newline='') as f:
@@ -33,6 +51,13 @@ def get_posts():
                     except:
                         row['dt_obj'] = None
                         row['formatted_date'] = date_str
+                    
+                    # Attach pending reply if exists
+                    if row['post_id'] in pending_map:
+                        reply_data = pending_map[row['post_id']]
+                        row['pending_reply'] = reply_data['content']
+                        row['reply_cost'] = reply_data['cost']
+                    
                     posts.append(row)
         except Exception as e:
             print(f"Error reading CSV: {e}")

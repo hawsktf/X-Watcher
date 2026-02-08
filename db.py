@@ -25,14 +25,18 @@ def init_db():
     if not os.path.exists(POSTS_CSV):
         with open(POSTS_CSV, 'w', newline='') as f:
             writer = csv.writer(f, quoting=csv.QUOTE_ALL)
-            # Added score, is_reply, is_pinned + media flags + link_url
-            writer.writerow(["post_id", "handle", "content", "scraped_at", "posted_at", "score", "is_reply", "is_pinned", "has_image", "has_video", "has_link", "link_url", "media_url", "is_retweet", "retweet_source"])
+            # Added score, is_reply, is_pinned + media flags + link_url + AI cost/reply tracking
+            writer.writerow(["post_id", "handle", "content", "scraped_at", "posted_at", "score", "is_reply", "is_pinned", "has_image", "has_video", "has_link", "link_url", "media_url", "is_retweet", "retweet_source", "quantification_cost", "replied_to", "reply_post_id"])
     
     if not os.path.exists(POSTED_REPLIES_CSV):
         with open(POSTED_REPLIES_CSV, 'w', newline='') as f:
             writer = csv.writer(f, quoting=csv.QUOTE_ALL)
-            writer.writerow(['id', 'post_id', 'handle', 'reply_content', 'posted_at'])
+            writer.writerow(['id', 'post_id', 'handle', 'reply_content', 'posted_at', 'generation_cost'])
             
+    if not os.path.exists(REPLIES_CSV):
+        with open(REPLIES_CSV, 'w', newline='') as f:
+            writer = csv.writer(f, quoting=csv.QUOTE_ALL)
+            writer.writerow(['id', 'post_id', 'reply_content', 'status', 'created_at', 'generation_cost'])
     if not os.path.exists(HANDLES_CSV):
         with open(HANDLES_CSV, 'w', newline='') as f:
             writer = csv.writer(f, quoting=csv.QUOTE_ALL)
@@ -70,6 +74,29 @@ def init_db():
                 except Exception as e:
                     print(f"Migration error: {e}")
 
+        # Migration for pending_replies.csv and posted_replies.csv
+        for csv_file in [REPLIES_CSV, POSTED_REPLIES_CSV]:
+            if os.path.exists(csv_file):
+                with open(csv_file, 'r', newline='') as f:
+                    reader = csv.reader(f)
+                    header = next(reader, None)
+                
+                if header and 'generation_cost' not in header:
+                    print(f"Migrating {os.path.basename(csv_file)} to include generation_cost column...")
+                    rows = []
+                    with open(csv_file, 'r', newline='') as f:
+                        reader = csv.reader(f)
+                        rows = list(reader)
+                    
+                    if rows:
+                        rows[0].append('generation_cost')
+                        for i in range(1, len(rows)):
+                            rows[i].append('0.0')
+                        
+                        with open(csv_file, 'w', newline='') as f:
+                            writer = csv.writer(f, quoting=csv.QUOTE_ALL)
+                            writer.writerows(rows)
+
         # Migration for posts.csv
         if os.path.exists(POSTS_CSV):
             with open(POSTS_CSV, 'r', newline='') as f:
@@ -77,7 +104,7 @@ def init_db():
                 p_header = next(reader, None)
             
             if p_header:
-                new_cols = ['media_url', 'is_retweet', 'retweet_source']
+                new_cols = ['media_url', 'is_retweet', 'retweet_source', 'quantification_cost', 'replied_to', 'reply_post_id']
                 cols_to_add = [c for c in new_cols if c not in p_header]
                 
                 if cols_to_add:
@@ -93,8 +120,13 @@ def init_db():
                             actual_header.append(c)
                         
                         for i in range(1, len(rows)):
-                            for _ in cols_to_add:
-                                rows[i].append('')
+                            for c in cols_to_add:
+                                if c == 'replied_to':
+                                    rows[i].append('False')
+                                elif c == 'quantification_cost':
+                                    rows[i].append('0.0')
+                                else:
+                                    rows[i].append('')
                         
                         with open(POSTS_CSV, 'w', newline='') as f:
                             writer = csv.writer(f, quoting=csv.QUOTE_ALL)
@@ -110,7 +142,7 @@ def add_post(post_id, handle, content, score=0, is_reply=False, is_pinned=False,
     
     # Optimized: Check existence first, then append.
     # No sorting on write.
-    fieldnames = ["post_id", "handle", "content", "scraped_at", "posted_at", "score", "is_reply", "is_pinned", "has_image", "has_video", "has_link", "link_url", "media_url", "is_retweet", "retweet_source"]
+    fieldnames = ["post_id", "handle", "content", "scraped_at", "posted_at", "score", "is_reply", "is_pinned", "has_image", "has_video", "has_link", "link_url", "media_url", "is_retweet", "retweet_source", "quantification_cost", "replied_to", "reply_post_id"]
     
     existing_ids = get_existing_post_ids()
     if str(post_id) in existing_ids:
@@ -131,7 +163,10 @@ def add_post(post_id, handle, content, score=0, is_reply=False, is_pinned=False,
         "link_url": link_url,
         "media_url": media_url,
         "is_retweet": is_retweet,
-        "retweet_source": retweet_source
+        "retweet_source": retweet_source,
+        "quantification_cost": 0.0,
+        "replied_to": False,
+        "reply_post_id": ""
     }
     
     # Append to file
@@ -215,16 +250,29 @@ def add_pending_reply(post_id, reply_content):
             except: pass
             
     with open(REPLIES_CSV, 'a', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerow([max_id + 1, post_id, reply_content, 'pending', datetime.utcnow().isoformat()])
+        writer = csv.writer(f, quoting=csv.QUOTE_ALL)
+        writer.writerow([max_id + 1, post_id, reply_content, 'pending', datetime.utcnow().isoformat(), 0.0])
 
 def get_pending_replies():
     replies = []
-    with open(REPLIES_CSV, 'r', newline='') as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if row['status'] == 'pending':
-                replies.append((row['id'], row['post_id'], row['reply_content']))
+    
+    # Build a map of post_id -> handle from posts.csv
+    post_handles = {}
+    if os.path.exists(POSTS_CSV):
+        with open(POSTS_CSV, 'r', newline='') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                post_handles[row['post_id']] = row['handle']
+    
+    # Get pending replies and enrich with handle
+    if os.path.exists(REPLIES_CSV):
+        with open(REPLIES_CSV, 'r', newline='') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row['status'] == 'pending':
+                    # Add handle from posts
+                    row['handle'] = post_handles.get(row['post_id'], 'unknown')
+                    replies.append(row)
     return replies
 
 def mark_reply_posted(reply_id):

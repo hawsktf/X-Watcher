@@ -2,28 +2,86 @@ import json
 import random
 import os
 import csv
+import time
 from db import POSTS_CSV, update_post_score
 
 def get_personality():
     with open("persona.txt", "r") as f:
         return f.read()
 
-def qualify_post_content(content, persona):
-    # This logic matches what was previously in brain.py
-    keywords = ["crypto", "bitcoin", "privacy", "surveillance", "identity", "kyc", "freedom", "money"]
-    score = 0
-    content_lower = content.lower()
+def get_ai_config():
+    with open("config.json") as f:
+        return json.load(f)
+
+def estimate_cost(model_name, input_tokens, output_tokens):
+    cfg = get_ai_config()
+    models = cfg.get("ai_models", {})
+    if model_name in models:
+        in_cost = models[model_name]["input_cost"]
+        out_cost = models[model_name]["output_cost"]
+        return (input_tokens / 1000 * in_cost) + (output_tokens / 1000 * out_cost)
+    return 0.0
+
+def qualify_post_with_ai(content, persona):
+    cfg = get_ai_config()
     
-    hits = sum(1 for k in keywords if k in content_lower)
-    if hits > 0:
-        score = min(100, 50 + (hits * 20)) 
-    else:
-        score = random.randint(20, 60)
+    # Test mode: use keyword matching instead of AI
+    if cfg.get("test_mode", False):
+        keywords = ["crypto", "bitcoin", "privacy", "surveillance", "identity", "kyc", "freedom", "money"]
+        content_lower = content.lower()
+        hits = sum(1 for k in keywords if k in content_lower)
+        if hits > 0:
+            score = min(100, 50 + (hits * 20))
+        else:
+            score = random.randint(20, 60)
+        return score, 0.0  # No cost in test mode
+    
+    # Production mode: use Gemini API
+    import google.generativeai as genai
+    api_key = os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        print("Error: GOOGLE_API_KEY not found.")
+        return 0, 0.0
+
+    genai.configure(api_key=api_key)
+    
+    model_name = cfg.get("quantifier_model", "gemini-1.5-flash")
+    model = genai.GenerativeModel(model_name)
+
+    prompt = f"""
+    You are an AI agent with the following persona:
+    {persona}
+
+    Your task is to score the following X (Twitter) post based on how relevant and interesting it is to your persona and mission.
+    Score it from 0 to 100.
+    
+    0 = Irrelevant, spam, or boring.
+    100 = Highly relevant, perfect for starting a conversation or debate.
+
+    Post Content:
+    "{content}"
+
+    Return ONLY the numeric score (e.g., 85).
+    """
+
+    try:
+        response = model.generate_content(prompt)
+        text = response.text.strip()
+        score = int(''.join(filter(str.isdigit, text)))
         
-    return score
+        # Estimate usage (Gemini doesn't always return token counts in standard response obj easily in all versions, 
+        # so we'll approximate or use usage_metadata if available)
+        input_tokens = model.count_tokens(prompt).total_tokens
+        output_tokens = model.count_tokens(text).total_tokens
+        cost = estimate_cost(model_name, input_tokens, output_tokens)
+        
+        return score, cost
+    except Exception as e:
+        print(f"AI Error: {e}")
+        return 0, 0.0
 
 def run_quantifier():
-    print("AI Quantifier: Scoring posts based on brand alignment...")
+    print("AI Quantifier: Scoring posts with Gemini...")
     
     if not os.path.exists(POSTS_CSV):
         print("No posts to quantify.")
@@ -35,20 +93,49 @@ def run_quantifier():
     with open(POSTS_CSV, 'r', newline='') as f:
         reader = csv.DictReader(f)
         posts_data = list(reader)
+        fieldnames = reader.fieldnames
 
+    # Check if we need to update rows
+    updates = []
+    
     for row in posts_data:
         post_id = row['post_id']
         handle = row['handle']
         content = row['content']
-        current_score = int(row.get('score', 0))
+        
+        try:
+            current_score = int(row.get('score', 0) if row.get('score', '') != '' else 0)
+        except ValueError:
+            current_score = 0
+
+        # Create quantification_cost column if not exists in row data (handled by db migration usually, but for safety)
+        if 'quantification_cost' not in row:
+            row['quantification_cost'] = 0.0
 
         if current_score == 0:
-            score = qualify_post_content(content, personality)
-            print(f"Quantifying {handle} [{post_id}]: New Score {score}")
-            update_post_score(post_id, score)
-        else:
-            # Skip already quantified posts
-            pass
+            score, cost = qualify_post_with_ai(content, personality)
+            print(f"Quantifying {handle} [{post_id}]: New Score {score} (Cost: ${cost:.5f})")
+            
+            row['score'] = score
+            row['quantification_cost'] = cost
+            
+            # Rate limit protection (simple sleep)
+            time.sleep(1)
+        
+        # Always append the row (whether updated or not)
+        updates.append(row)
+
+    # Rewrite CSV if changes happened (and if we are running this logic, we likely rely on memory for small datasets)
+    # The previous logic used update_post_score which re-read the CSV. 
+    # To support cost updating, we will write back the whole file here since we have it in memory.
+    
+    if updates:
+        with open(POSTS_CSV, 'w', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames, quoting=csv.QUOTE_ALL)
+            writer.writeheader()
+            writer.writerows(updates)
 
 if __name__ == "__main__":
+    from dotenv import load_dotenv
+    load_dotenv()
     run_quantifier()

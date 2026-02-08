@@ -9,8 +9,8 @@ X-Watcher is a powerful social media monitoring and automation agent designed fo
   - **Nitter Mirror Fallback**: Automatically rotates through a list of Nitter mirrors if `x.com` is blocked or failing, ensuring zero downtime.
   - **Source Prioritization**: Tracks the last successful source and prioritizes it for the next run.
 - **Session Persistence**: Uses Playwright persistent contexts to keep you logged in to X, avoiding repeated login attempts and potential flags.
-- **Intelligent Quantification**: Scores posts based on custom logic to identify the most relevant content.
-- **Automated AI Replier**: Drafts context-aware responses and posts them directly via a browser, bypassing API limitations.
+- **AI-Powered Quantification**: Uses Google Gemini to intelligently score posts (0-100) based on your persona and mission, with full cost tracking.
+- **AI Reply Drafting**: Generates contextual, witty replies using Gemini Pro, respecting your brand voice and style guidelines.
 - **Premium Feed GUI**: 
   - Modern, X-style visualization of your `posts.csv`.
   - Dark mode with glassmorphism design and Outfit typography.
@@ -50,7 +50,7 @@ X-Watcher is a powerful social media monitoring and automation agent designed fo
    ```env
    TWITTER_USERNAME=your_x_username
    TWITTER_PASSWORD=your_x_password
-   OPENAI_API_KEY=your_openai_key
+   GOOGLE_API_KEY=your_gemini_api_key
    ```
 
 2. **JSON Settings**: Edit `config.json`:
@@ -58,6 +58,9 @@ X-Watcher is a powerful social media monitoring and automation agent designed fo
    - `refresh_seconds`: Interval between auto-scraper cycles.
    - `gui_refresh_seconds`: GUI auto-refresh interval (default `300`).
    - `headless_browser`: Set `true` to run browsers in the background.
+   - `quantifier_model`: AI model for scoring posts (default: `gemini-1.5-flash`).
+   - `drafter_model`: AI model for drafting replies (default: `gemini-1.5-pro`).
+   - `ai_models`: Cost mapping for different Gemini models.
 
 ## 🏃 Usage
 

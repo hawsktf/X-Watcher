@@ -5,12 +5,16 @@
         "quantifier_threshold": "Score (0-100) required to consider a post relevant for replies",
         "emojis_enabled": "Whether to include emojis in AI-generated drafts",
         "reply_to_replies": "If true, the bot will also reply to people replying to the target handles",
+        "reply_to_reposts": "If true, the bot will draft replies for retweets/reposts (default: false)",
         "ignore_pinned": "Whether to skip posts that are pinned at the top of a profile",
         "reply_latency_minutes": "Minutes to wait before drafting a reply to ensure natural timing",
         "check_previous_replies": "Prevents double-replying to the same post",
         "headless_browser": "If true, browsers run in the background without a window",
         "gui_refresh_seconds": "How often the Feed GUI web page auto-refreshes (default 300s)",
-        "ai_model": "The OpenAI model used for drafting replies",
+        "test_mode": "If true, uses mock AI responses instead of calling Gemini API (saves tokens)",
+        "quantifier_model": "Model for scoring posts (cheaper/faster)",
+        "drafter_model": "Model for drafting replies (smarter)",
+        "ai_models": "Dictionary of available models and their costs per 1k input/output tokens",
         "nitter_mirrors": "List of fallback Nitter URLs for scraping without login",
         "browser_timeout_seconds": "Timeout for page loads in the scraper",
         "verification_wait_seconds": "Time to wait for Cloudflare/Verifying challenges",
@@ -40,18 +44,42 @@
         "RayDalio",
         "adamseconomics",
         "thecoastguy",
-        "CaitlinLong_"
+        "CaitlinLong_",
+        "monerify",
+        "SwanDesk",
+        "coinbureau"
     ],
     "refresh_seconds": 1800,
     "quantifier_threshold": 80,
     "emojis_enabled": true,
     "reply_to_replies": false,
+    "reply_to_reposts": false,
     "ignore_pinned": true,
     "reply_latency_minutes": 10,
     "check_previous_replies": true,
     "headless_browser": true,
     "gui_refresh_seconds": 300,
-    "ai_model": "gpt-4o",
+    "test_mode": true,
+    "quantifier_model": "gemini-1.5-flash",
+    "drafter_model": "gemini-1.5-flash",
+    "ai_models": {
+        "gemini-1.5-flash": {
+            "input_cost": 7.5e-05,
+            "output_cost": 0.0003
+        },
+        "gemini-1.5-pro": {
+            "input_cost": 0.00125,
+            "output_cost": 0.005
+        },
+        "gemini-1.5-flash-8b": {
+            "input_cost": 3.75e-05,
+            "output_cost": 0.00015
+        },
+        "gemini-1.5-pro-002": {
+            "input_cost": 0.00125,
+            "output_cost": 0.005
+        }
+    },
     "nitter_mirrors": [
         "https://nitter.privacydev.net",
         "https://xcancel.com",

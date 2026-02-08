@@ -33,7 +33,7 @@ def run_automation_loop(scraper_only=False, run_quantifier_flag=False):
                 print("--- Brain Drafting Complete ---")
                 
                 print("\n--- Starting Replier Process ---")
-                process_replies()
+                asyncio.run(process_replies())
                 print("--- Replier Process Complete ---")
             else:
                 print("\n--- Scraper Only Mode: Skipping Brain & Replier ---")
