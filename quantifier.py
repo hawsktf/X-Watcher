@@ -108,7 +108,8 @@ def run_quantifier():
         fieldnames = reader.fieldnames
 
     # Count unscored posts
-    unscored_count = sum(1 for row in posts_data if row.get('score', '') == '' or int(row.get('score', 0)) == 0)
+    # Count unscored posts (score is empty string or None)
+    unscored_count = sum(1 for row in posts_data if row.get('score') in [None, ''])
     
     print(f"🧐 Quantification Start: {unscored_count} posts to be scored. Replies enabled: {reply_to_replies}, Reposts enabled: {reply_to_reposts}")
 
@@ -122,16 +123,12 @@ def run_quantifier():
         handle = row['handle']
         content = row['content']
         
-        try:
-            current_score = int(row.get('score', 0) if row.get('score', '') != '' else 0)
-        except ValueError:
-            current_score = 0
+        # Check if score is missing (empty string or None)
+        # Note: '0' is a valid score now (meaning AI rated it 0)
+        raw_score = row.get('score')
+        needs_scoring = raw_score in [None, '']
 
-        # Create quantification_cost column if not exists in row data (handled by db migration usually, but for safety)
-        if 'quantification_cost' not in row:
-            row['quantification_cost'] = 0.0
-
-        if current_score == 0:
+        if needs_scoring:
             score, cost = qualify_post_with_ai(content, personality)
             print(f"  📊 Scored @{handle}: {score} (Cost: ${cost:.5f})")
             
@@ -141,7 +138,12 @@ def run_quantifier():
             # Rate limit protection (simple sleep)
             time.sleep(1)
             
-        if int(row.get('score', 0)) >= threshold:
+        try:
+            final_score = int(row.get('score', 0) if row.get('score') not in [None, ''] else 0)
+        except ValueError:
+            final_score = 0
+            
+        if final_score >= threshold:
             qualified_count += 1
             
         processed_count += 1

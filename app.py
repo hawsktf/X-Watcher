@@ -3,6 +3,7 @@ import time
 import asyncio
 import threading
 import argparse
+from tqdm import tqdm
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 
@@ -53,8 +54,10 @@ def run_automation_loop(scraper_only=False, run_quantifier_flag=False):
         except:
             refresh = 3600
             
-        print(f"Waiting {refresh} seconds for next cycle...")
-        time.sleep(refresh)
+        # print(f"Waiting {refresh} seconds for next cycle...")
+        # time.sleep(refresh)
+        for _ in tqdm(range(refresh), desc="Waiting for next cycle", unit="s"):
+            time.sleep(1)
 
 def main():
     parser = argparse.ArgumentParser(description="X-Watcher Hybrid Agent")

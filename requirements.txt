@@ -6,3 +6,4 @@ requests
 tweepy
 feedparser
 google-genai
+tqdm

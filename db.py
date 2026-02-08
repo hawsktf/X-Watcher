@@ -79,8 +79,11 @@ def init_db():
                     with open(POSTS_CSV, 'w', newline='') as f:
                         writer = csv.writer(f, quoting=csv.QUOTE_ALL)
                         writer.writerows(rows)
+    
+    # Migration: Set score='0' to score='' (unscored) for correct quantification logic
+    # migrate_zero_scores() # Run once manually if needed, do not run on every startup
 
-def add_post(post_id, handle, content, score=0, is_reply=False, is_pinned=False, has_image=False, has_video=False, has_link=False, link_url="", media_url="", is_retweet=False, retweet_source="", posted_at=None):
+def add_post(post_id, handle, content, score="", is_reply=False, is_pinned=False, has_image=False, has_video=False, has_link=False, link_url="", media_url="", is_retweet=False, retweet_source="", posted_at=None):
     now = datetime.now(timezone.utc)
     if not posted_at:
         posted_at = now.isoformat()
@@ -190,7 +193,30 @@ def get_latest_post_id(handle):
                     latest_time = row['scraped_at']
                     latest_id = row['post_id']
     return latest_id
+    return latest_id
 
+
+def migrate_zero_scores():
+    """Converts posts with score='0' to score='' to ensure they are treated as unscored."""
+    if not os.path.exists(POSTS_CSV): return
+
+    rows = []
+    updated = False
+    with open(POSTS_CSV, 'r', newline='') as f:
+        reader = csv.DictReader(f)
+        fieldnames = reader.fieldnames
+        for row in reader:
+            if row.get('score') == '0':
+                row['score'] = ''
+                updated = True
+            rows.append(row)
+    
+    if updated:
+        print("Migrating zero scores to empty strings...")
+        with open(POSTS_CSV, 'w', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames, quoting=csv.QUOTE_ALL)
+            writer.writeheader()
+            writer.writerows(rows)
 
 def migrate_replies():
     if not os.path.exists(PENDING_REPLIES_CSV) and not os.path.exists(POSTED_REPLIES_CSV):

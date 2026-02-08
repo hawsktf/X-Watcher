@@ -231,7 +231,7 @@ async def scrape_x_dot_com(handle, context, headless=True, timeout=60000):
                 if is_pinned: status += " [📌 PINNED]"
                 if is_reply: status += " [↩️ REPLY]"
                 print(f"  ✅ Post {post_id}: {status} {content[:40]}... (Posted: {posted_at})")
-                is_new = add_post(post_id, handle, content, score=0, is_reply=is_reply, is_pinned=is_pinned,
+                is_new = add_post(post_id, handle, content, score="", is_reply=is_reply, is_pinned=is_pinned,
                          has_image=has_image, has_video=has_video, has_link=has_link, link_url=link_url, 
                          media_url=media_url, is_retweet=is_retweet, retweet_source=retweet_source, posted_at=posted_at)
                 if is_new:
@@ -357,7 +357,7 @@ async def scrape_nitter(handle, mirror, context, cfg, suffix=""):
                 if is_reply: status += " [↩️ REPLY]"
                 if is_retweet: status += f" [🔄 RT from {retweet_source}]"
                 print(f"  ✅ Post {post_id}: {status} {content[:40]}... (Posted: {posted_at})")
-                is_new = add_post(post_id, handle, content, score=0, is_reply=is_reply, is_pinned=is_pinned,
+                is_new = add_post(post_id, handle, content, score="", is_reply=is_reply, is_pinned=is_pinned,
                          has_image=has_image, has_video=has_video, has_link=has_link, link_url=link_url, 
                          media_url=media_url, is_retweet=is_retweet, retweet_source=retweet_source, posted_at=posted_at)
                 if is_new:
