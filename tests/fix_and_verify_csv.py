@@ -29,7 +29,7 @@ def fix_csv():
             for row in reader:
                 # Sanitize content: remove newlines to flatten the CSV
                 if 'content' in row and row['content']:
-                    row['content'] = row['content'].replace('\n', '  ').replace('\r', '')
+                    row['content'] = row['content'].replace('\r', '')
                 rows.append(row)
     except Exception as e:
         print(f"Error reading CSV: {e}")

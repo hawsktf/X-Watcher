@@ -8,7 +8,7 @@ from datetime import datetime
 app = Flask(__name__)
 
 POSTS_CSV = "data/posts.csv"
-REPLIES_CSV = "data/pending_replies.csv"
+REPLIES_CSV = "data/replies.csv"
 
 def get_pending_reply_map():
     replies = {}
@@ -92,7 +92,7 @@ def api_posts():
 @app.route('/api/config')
 def api_config():
     try:
-        with open("config.json") as f:
+        with open("config_user/config.json") as f:
             return jsonify(json.load(f))
     except:
         return jsonify({"gui_refresh_seconds": 300})
@@ -100,7 +100,7 @@ def api_config():
 if __name__ == '__main__':
     port = 5000
     try:
-        with open("config.json") as f:
+        with open("config_user/config.json") as f:
             cfg = json.load(f)
             port = cfg.get("gui_port", 5000)
     except: pass

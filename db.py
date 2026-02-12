@@ -12,6 +12,7 @@ if not os.path.exists(DATA_DIR):
 POSTS_CSV = os.path.join(DATA_DIR, "posts.csv")
 HANDLES_CSV = os.path.join(DATA_DIR, "handles.csv")
 REPLIES_CSV = os.path.join(DATA_DIR, "replies.csv")
+ENGAGEMENT_CSV = os.path.join(DATA_DIR, "engagement.csv")
 # Legacy files for migration
 PENDING_REPLIES_CSV = os.path.join(DATA_DIR, "pending_replies.csv")
 POSTED_REPLIES_CSV = os.path.join(DATA_DIR, "posted_replies.csv")
@@ -40,7 +41,12 @@ def init_db():
         # Create consolidated replies CSV
         with open(REPLIES_CSV, 'w', newline='') as f:
             writer = csv.writer(f, quoting=csv.QUOTE_ALL)
-            writer.writerow(['id', 'target_post_id', 'handle', 'content', 'status', 'created_at', 'posted_at', 'generation_model', 'generation_cost', 'insight', 'reply_tweet_id'])
+            writer.writerow(['id', 'target_post_id', 'handle', 'content', 'status', 'created_at', 'posted_at', 'generation_model', 'generation_cost', 'insight', 'reply_tweet_id', 'nostr_event_id', 'posted_to_nostr'])
+            
+    if not os.path.exists(ENGAGEMENT_CSV):
+        with open(ENGAGEMENT_CSV, 'w', newline='') as f:
+            writer = csv.writer(f, quoting=csv.QUOTE_ALL)
+            writer.writerow(['reply_id', 'target_post_id', 'handle', 'content', 'scraped_at', 'likes', 'retweets', 'replied_to', 'engagement_mode'])
             
     # Perform Migration if legacy files exist
     migrate_replies()
@@ -80,6 +86,39 @@ def init_db():
                         writer = csv.writer(f, quoting=csv.QUOTE_ALL)
                         writer.writerows(rows)
     
+    # Migration for replies.csv
+    if os.path.exists(REPLIES_CSV):
+        with open(REPLIES_CSV, 'r', newline='') as f:
+            reader = csv.reader(f)
+            r_header = next(reader, None)
+        
+        if r_header:
+            new_cols = ['nostr_event_id', 'posted_to_nostr']
+            cols_to_add = [c for c in new_cols if c not in r_header]
+            
+            if cols_to_add:
+                print(f"Migrating replies.csv to include {', '.join(cols_to_add)} column(s)...")
+                rows = []
+                with open(REPLIES_CSV, 'r', newline='') as f:
+                    reader = csv.reader(f)
+                    rows = list(reader)
+                
+                if rows:
+                    actual_header = rows[0]
+                    for c in cols_to_add:
+                        actual_header.append(c)
+                    
+                    for i in range(1, len(rows)):
+                        for c in cols_to_add:
+                            if c == 'posted_to_nostr':
+                                rows[i].append('N')
+                            else:
+                                rows[i].append('')
+                    
+                    with open(REPLIES_CSV, 'w', newline='') as f:
+                        writer = csv.writer(f, quoting=csv.QUOTE_ALL)
+                        writer.writerows(rows)
+    
     # Migration: Set score='0' to score='' (unscored) for correct quantification logic
     # migrate_zero_scores() # Run once manually if needed, do not run on every startup
 
@@ -95,13 +134,14 @@ def add_post(post_id, handle, content, score="", is_reply=False, is_pinned=False
     # No sorting on write.
     fieldnames = ["post_id", "handle", "content", "scraped_at", "posted_at", "score", "is_reply", "is_pinned", "has_image", "has_video", "has_link", "link_url", "media_url", "is_retweet", "retweet_source", "quantification_cost", "replied_to", "reply_post_id"]
     
-    existing_ids = get_existing_post_ids()
-    if str(post_id) in existing_ids:
+    existing_keys = get_existing_post_keys()
+    if (str(post_id), handle.lower()) in existing_keys:
+        print(f"  ℹ️ Skipping duplicate post {post_id} for @{handle}.")
         return False
 
-    # Sanitize content to avoid CSV issues (remove newlines and commas)
+    # Sanitize content to avoid CSV issues (remove carriage returns only if needed, CSV handles newlines)
     if content:
-        content = content.replace("\n", "  ").replace("\r", "").replace(",", " ")
+        content = content.replace("\r", "")
 
     new_row = {
         "post_id": post_id,
@@ -295,7 +335,7 @@ def migrate_replies():
         shutil.move(POSTED_REPLIES_CSV, os.path.join(archive_dir, f"posted_replies_migrated_{int(datetime.now().timestamp())}.csv"))
 
     # Append to replies.csv
-    fieldnames = ['id', 'target_post_id', 'handle', 'content', 'status', 'created_at', 'posted_at', 'generation_model', 'generation_cost', 'insight', 'reply_tweet_id']
+    fieldnames = ['id', 'target_post_id', 'handle', 'content', 'status', 'created_at', 'posted_at', 'generation_model', 'generation_cost', 'insight', 'reply_tweet_id', 'nostr_event_id', 'posted_to_nostr']
     
     existing_ids = set()
     if os.path.exists(REPLIES_CSV):
@@ -308,6 +348,9 @@ def migrate_replies():
         writer = csv.DictWriter(f, fieldnames=fieldnames, quoting=csv.QUOTE_ALL)
         for r in replies:
             if str(r['id']) not in existing_ids:
+                # Add default values for new columns if missing in migrated row
+                if 'nostr_event_id' not in r: r['nostr_event_id'] = ''
+                if 'posted_to_nostr' not in r: r['posted_to_nostr'] = 'N'
                 writer.writerow(r)
     
     print(f"Migrated {len(replies)} replies to replies.csv.")
@@ -320,6 +363,10 @@ def add_reply(post_id, handle, content, status="pending", generation_model="unkn
             for row in reader:
                 try: max_id = max(max_id, int(row['id']))
                 except: pass
+
+    # Sanitize content to avoid CSV issues
+    if content:
+        content = content.replace("\r", "")
 
     with open(REPLIES_CSV, 'a', newline='') as f:
         writer = csv.writer(f, quoting=csv.QUOTE_ALL)
@@ -334,7 +381,9 @@ def add_reply(post_id, handle, content, status="pending", generation_model="unkn
             generation_model,
             cost,
             insight,
-            ""
+            "",
+            "",
+            "N"
         ])
 
 def get_pending_replies(status='pending'):
@@ -384,6 +433,10 @@ def mark_reply_status(reply_id, status, reply_tweet_id=""):
                     if status == 'posted':
                         row['posted_at'] = datetime.now(timezone.utc).isoformat()
                         row['reply_tweet_id'] = reply_tweet_id
+                    elif status == 'posted_nostr':
+                         # Specialized status update for Nostr if we want to log it separately, 
+                         # but we usually just update the flag.
+                         pass
                     updated = True
                 rows.append(row)
     
@@ -433,6 +486,29 @@ def mark_replies_batch(updates):
             writer.writerows(rows)
         # print(f"  💾 DB: Batch updated {updated_count} replies.")
 
+def update_nostr_status(reply_id, event_id, posted="Y"):
+    """Updates the Nostr status for a reply."""
+    rows = []
+    fieldnames = []
+    updated = False
+    
+    if os.path.exists(REPLIES_CSV):
+        with open(REPLIES_CSV, 'r', newline='') as f:
+            reader = csv.DictReader(f)
+            fieldnames = reader.fieldnames
+            for row in reader:
+                if row['id'] == str(reply_id):
+                    row['nostr_event_id'] = event_id
+                    row['posted_to_nostr'] = posted
+                    updated = True
+                rows.append(row)
+    
+    if updated:
+        with open(REPLIES_CSV, 'w', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames, quoting=csv.QUOTE_ALL)
+            writer.writeheader()
+            writer.writerows(rows)
+
     handles = []
     with open(HANDLES_CSV, 'r', newline='') as f:
         reader = csv.DictReader(f)
@@ -468,6 +544,16 @@ def get_existing_post_ids():
                 ids.add(row['post_id'])
     return ids
 
+def get_existing_post_keys():
+    """Returns a set of (post_id, handle) for accurate duplicate checking."""
+    keys = set()
+    if os.path.exists(POSTS_CSV):
+        with open(POSTS_CSV, 'r', newline='') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                keys.add((row['post_id'], row['handle'].lower()))
+    return keys
+
 def log_scraper_performance(source, handle, success, latency, posts_scraped=0, new_posts_found=0, error_msg=""):
     with open(SCORECARD_CSV, 'a', newline='') as f:
         writer = csv.writer(f, quoting=csv.QUOTE_ALL)
@@ -481,3 +567,75 @@ def log_scraper_performance(source, handle, success, latency, posts_scraped=0, n
             new_posts_found,
             error_msg
         ])
+
+def add_engagement_reply(reply_id, target_post_id, handle, content, likes=0, retweets=0, engagement_mode="assess only"):
+    now = datetime.now(timezone.utc).isoformat()
+    fieldnames = ['reply_id', 'target_post_id', 'handle', 'content', 'scraped_at', 'likes', 'retweets', 'replied_to', 'engagement_mode']
+    
+    # Check for existence
+    existing_ids = set()
+    if os.path.exists(ENGAGEMENT_CSV):
+        with open(ENGAGEMENT_CSV, 'r', newline='') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                existing_ids.add(row['reply_id'])
+    
+    if str(reply_id) in existing_ids:
+        # Update metrics instead of skipping? For now, let's just skip duplicates
+        return False
+
+    if content:
+        content = content.replace("\r", "")
+
+    new_row = {
+        'reply_id': reply_id,
+        'target_post_id': target_post_id,
+        'handle': handle,
+        'content': content,
+        'scraped_at': now,
+        'likes': likes,
+        'retweets': retweets,
+        'replied_to': 'False',
+        'engagement_mode': engagement_mode
+    }
+    
+    with open(ENGAGEMENT_CSV, 'a', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames, quoting=csv.QUOTE_ALL)
+        writer.writerow(new_row)
+    return True
+
+def get_pending_engagement_replies():
+    replies = []
+    if os.path.exists(ENGAGEMENT_CSV):
+        with open(ENGAGEMENT_CSV, 'r', newline='') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row.get('replied_to') == 'False':
+                    replies.append(row)
+    return replies
+
+def mark_engagement_replied(reply_id):
+    if not os.path.exists(ENGAGEMENT_CSV): return
+    rows = []
+    updated = False
+    with open(ENGAGEMENT_CSV, 'r', newline='') as f:
+        reader = csv.DictReader(f)
+        fieldnames = reader.fieldnames
+        for row in reader:
+            if row['reply_id'] == str(reply_id):
+                row['replied_to'] = 'True'
+                updated = True
+            rows.append(row)
+    
+    if updated:
+        with open(ENGAGEMENT_CSV, 'w', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames, quoting=csv.QUOTE_ALL)
+            writer.writeheader()
+            writer.writerows(rows)
+
+def update_post_metrics(post_id, likes, retweets):
+    # This might apply to posts.csv or engagement.csv
+    # For now, let's assume we want to track these in posts.csv maybe?
+    # Actually, the requirement said "monitor and record for replies (and possibly post performance re engagement)"
+    # Let's add columns to posts.csv if they don't exist
+    pass

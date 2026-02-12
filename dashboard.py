@@ -16,7 +16,7 @@ def clear():
     os.system('cls' if os.name == 'nt' else 'clear')
 
 def load_config():
-    with open("config.json") as f:
+    with open("config_user/config.json") as f:
         return json.load(f)
 
 def view_posts():

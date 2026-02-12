@@ -6,11 +6,11 @@ import time
 from db import POSTS_CSV, update_post_score
 
 def get_brand():
-    with open("brand.txt", "r") as f:
+    with open("config_user/brand.txt", "r") as f:
         return f.read()
 
 def get_ai_config():
-    with open("config.json") as f:
+    with open("config_user/config.json") as f:
         return json.load(f)
 
 def estimate_cost(model_name, input_tokens, output_tokens):

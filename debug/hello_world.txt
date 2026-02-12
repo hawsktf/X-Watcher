@@ -1,0 +1,1 @@
+This is a larger dummy file content to ensure it is not filtered by media providers. It contains some text that explains it is part of a NOSTR and media uploader isolation test for the X-Watcher project.

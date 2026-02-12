@@ -18,6 +18,7 @@ from generator import run_generator
 from poster import run_poster as run_poster_process
 from quantifier import run_quantifier
 from qualifier import run_qualifier
+from engagement import run_engagement
 
 def run_automation_loop(scraper_only=False, run_quantifier_flag=False):
     """Main automation loop."""
@@ -27,27 +28,23 @@ def run_automation_loop(scraper_only=False, run_quantifier_flag=False):
             print(f"🔄 STARTING CYCLE AT {datetime.now(timezone.utc).strftime('%H:%M:%S')} UTC")
             print("="*50)
 
-            print("\n🚀 Starting Scraper Cycle ---")
             asyncio.run(run_scraper())
-            print("✅ Scraper Cycle Complete ---")
-            
-            # Run quantifier by default
-            print("\n🧠 Starting Post Quantification ---")
             run_quantifier()
-            print("✅ Post Quantification Complete ---")
+            
+            # Run engagement monitor
+            if not scraper_only:
+                try:
+                    with open("config_user/config.json") as f:
+                        cfg = json.load(f)
+                    if cfg.get("engagement_enabled", False):
+                        asyncio.run(run_engagement())
+                except Exception as e:
+                    print(f"  ❌ Engagement Monitor Error: {e}")
             
             if not scraper_only:
-                print("\n🎨 Starting Generator (Creation) ---")
                 run_generator()
-                print("✅ Generator Complete ---")
-                
-                print("\n🛡️ Starting Qualifier (Safety) ---")
                 run_qualifier()
-                print("✅ Qualifier Complete ---")
-                
-                print("\n📢 Starting Poster (Execution) ---")
                 asyncio.run(run_poster_process())
-                print("✅ Poster Complete ---")
             else:
                 print("\n--- Scraper Only Mode: Skipping Generator, Qualifier & Poster ---")
             
@@ -55,7 +52,7 @@ def run_automation_loop(scraper_only=False, run_quantifier_flag=False):
             print(f"Error in main loop: {e}")
         # Sleep for the refresh interval
         try:
-            with open("config.json") as f:
+            with open("config_user/config.json") as f:
                 cfg = json.load(f)
             refresh = cfg.get("refresh_seconds", 3600)
         except:
@@ -69,6 +66,8 @@ def run_automation_loop(scraper_only=False, run_quantifier_flag=False):
 def main():
     # PID Lock Mechanism
     lock_file = "app.lock"
+    current_pid = os.getpid()
+    
     if os.path.exists(lock_file):
         try:
             with open(lock_file, "r") as f:
@@ -77,17 +76,28 @@ def main():
             # Check if process is actually running
             try:
                 os.kill(pid, 0)
-                print(f"⚠️ App is already running (PID {pid}). Exiting.")
-                sys.exit(1)
+                # If we get here, PID exists. But is it US or another app.py?
+                # On linux we can check /proc/PID/cmdline
+                try:
+                    with open(f"/proc/{pid}/cmdline", "r") as f_cmd:
+                        cmd = f_cmd.read()
+                        if "app.py" in cmd:
+                            print(f"⚠️ App is already running (PID {pid}). Exiting.")
+                            sys.exit(1)
+                        else:
+                            print(f"⚠️ Stale lock file found (PID {pid} is a different process). Removing.")
+                            os.remove(lock_file)
+                except:
+                    print(f"⚠️ App appears to be running (PID {pid}). Exiting for safety.")
+                    sys.exit(1)
             except OSError:
                 print(f"⚠️ Stale lock file found (PID {pid} not running). Removing.")
                 os.remove(lock_file)
-        except ValueError:
-            print("⚠️ Invalid lock file. Removing.")
+        except (ValueError, IOError):
+            print("⚠️ Invalid or unreadable lock file. Removing.")
             os.remove(lock_file)
 
     # Create lock
-    current_pid = os.getpid()
     with open(lock_file, "w") as f:
         f.write(str(current_pid))
     
@@ -100,24 +110,24 @@ def main():
         print(f"Project X-Watcher: Starting Hybrid Agent{' (Scraper Only Mode)' if args.scraper_only else ''} (PID {current_pid})...")
         init_db()
 
-        # Start the automation loop in a daemon thread
-        t = threading.Thread(
-            target=run_automation_loop,
-            args=(args.scraper_only, args.quantifier),
-            daemon=True
-        )
-        t.start()
-
-        print("Agent is running in the background. Press Ctrl+C to stop.")
-        while True:
-            time.sleep(1)
+        # Start the automation loop
+        # We don't use a daemon thread here to ensure we handle cleanup better,
+        # or we just keep the main loop simple.
+        run_automation_loop(args.scraper_only, args.quantifier)
             
     except KeyboardInterrupt:
         print("\nShutting down...")
     finally:
+        # Check if WE own the lock file before removing it
         if os.path.exists(lock_file):
-            os.remove(lock_file)
-            print("🔒 Lock file removed.")
+            try:
+                with open(lock_file, "r") as f:
+                    pid = int(f.read().strip())
+                if pid == current_pid:
+                    os.remove(lock_file)
+                    print("🔒 Lock file removed.")
+            except:
+                pass
 
 if __name__ == "__main__":
     main()

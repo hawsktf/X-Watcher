@@ -26,8 +26,14 @@ X-Watcher is a powerful social media monitoring and automation agent designed fo
 - `dashboard.py`: Terminal-based control panel.
 - `feed_app.py`: Flask backend for the web feed.
 - `templates/feed.html`: Frontend for the premium web feed.
-- `db.py`: Local CSV-based data storage (`posts.csv`).
-- `config.json`: Master configuration file.
+- `db.py`: Local CSV-based data storage.
+- `config_user/`: User-specific configuration.
+  - `config.json`: Master configuration file.
+  - `persona.txt`: AI communication style guidelines.
+  - `brand.txt`: AI content and brand strategy.
+- `data/`: CSV databases (`posts.csv`, `replies.csv`, `handles.csv`).
+- `debug/`: Screenshots and diagnostic files.
+- `tests/`: Utility scripts and verification tests.
 - `data/browser_session`: Persistent browser data storage.
 
 ## 📦 Installation
@@ -53,7 +59,7 @@ X-Watcher is a powerful social media monitoring and automation agent designed fo
    GOOGLE_API_KEY=your_gemini_api_key
    ```
 
-2. **JSON Settings**: Edit `config.json`:
+2. **JSON Settings**: Edit `config_user/config.json`:
    - `handles`: List of X handles to track.
    - `refresh_seconds`: Interval between auto-scraper cycles.
    - `gui_refresh_seconds`: GUI auto-refresh interval (default `300`).

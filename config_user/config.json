@@ -15,6 +15,7 @@
         "test_mode": "If true, uses mock AI responses instead of calling Gemini API (saves tokens)",
         "quantifier_model": "Model for scoring posts (cheaper/faster)",
         "drafter_model": "Model for drafting replies (smarter)",
+        "engagement_model": "Model specifically used for drafting engagement replies (interactions)",
         "ai_models": "Dictionary of available models and their costs per 1k input/output tokens",
         "nitter_mirrors": "List of fallback Nitter URLs for scraping without login",
         "browser_timeout_seconds": "Timeout for page loads in the scraper",
@@ -24,10 +25,16 @@
         "use_browser_replier": "If true, replies are posted via browser rather than API",
         "scrape_with_replies": "Whether to scrape the 'Posts & Replies' tab (captures mentions/threads)",
         "x_dot_com_base_url": "The entry point for X.com (usually https://x.com)",
-        "workflow_mode": "'draft' (save to file) or 'auto' (post immediately)",
+        "workflow_mode": "'draft' (save to file) or 'post' (ready to be posted)",
         "browser_user_data_dir": "Where terminal sessions and cookies are stored locally",
         "last_successful_source": "The source that worked best in the previous run (prioritized)",
-        "last_successful_nitter_mirror": "The specific Nitter mirror that worked last"
+        "last_successful_nitter_mirror": "The specific Nitter mirror that worked last",
+        "engagement_enabled": "Enables/Disables monitoring of replies to your own posts",
+        "engagement_mode": "'assess only' (log only) or 'reply' (draft replies to interactions)",
+        "twitter_handle": "The user's own X/Twitter handle for engagement monitoring",
+        "nostr_enabled": "Whether to also post replies to Nostr",
+        "nostr_relays": "List of Nostr relays to broadcast to",
+        "nostr_screenshot_enabled": "Whether to capture and include X post screenshots on Nostr"
     },
     "handles": [
         "sircryptotips",
@@ -56,14 +63,15 @@
     "reply_to_replies": false,
     "reply_to_reposts": false,
     "ignore_pinned": true,
-    "reply_latency_minutes": 10,
-    "qualify_age_limit_hours": 12,
+    "reply_latency_minutes": 2,
+    "qualify_age_limit_hours": 4,
     "check_previous_replies": true,
     "headless_browser": true,
     "gui_refresh_seconds": 300,
     "test_mode": false,
     "quantifier_model": "gemini-2.0-flash",
-    "drafter_model": "gemini-2.5-flash",
+    "drafter_model": "gemini-2.0-flash",
+    "engagement_model": "gemini-2.0-flash",
     "ai_models": {
         "gemini-2.5-flash": {
             "input_cost": 7.5e-05,
@@ -99,8 +107,19 @@
     "use_browser_replier": true,
     "scrape_with_replies": true,
     "x_dot_com_base_url": "https://x.com",
-    "workflow_mode": "draft",
+    "workflow_mode": "post",
     "browser_user_data_dir": "data/browser_session",
     "last_successful_source": "https://nitter.poast.org",
-    "last_successful_nitter_mirror": "https://nitter.poast.org"
+    "last_successful_nitter_mirror": "https://nitter.poast.org",
+    "engagement_enabled": true,
+    "engagement_mode": "assess only",
+    "twitter_handle": "kangofire",
+    "nostr_enabled": true,
+    "nostr_relays": [
+        "wss://relay.damus.io",
+        "wss://nos.lol",
+        "wss://relay.snort.social",
+        "wss://relay.primal.net"
+    ],
+    "nostr_screenshot_enabled": true
 }

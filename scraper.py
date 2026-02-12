@@ -9,7 +9,8 @@ import shutil
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 from playwright.async_api import async_playwright
-from db import add_post, update_handle_check, get_existing_post_ids, log_scraper_performance
+from db import (add_post, get_existing_post_ids, get_existing_post_keys, get_all_posts,
+               update_handle_check, log_scraper_performance, init_db)
 
 # Load environment variables
 load_dotenv()
@@ -36,17 +37,17 @@ def atomic_write_json(file_path, data):
 def update_config_source(source):
     try:
         if not source: return
-        with open("config.json", "r") as f:
+        with open("config_user/config.json", "r") as f:
             cfg = json.load(f)
         cfg["last_successful_source"] = source
-        atomic_write_json("config.json", cfg)
+        atomic_write_json("config_user/config.json", cfg)
     except Exception as e:
         print(f"Error updating config source: {e}")
 
 def demote_nitter_mirror(mirror):
     try:
         if not mirror: return
-        with open("config.json", "r") as f:
+        with open("config_user/config.json", "r") as f:
             cfg = json.load(f)
         
         mirrors = cfg.get("nitter_mirrors", NITTER_MIRRORS_DEFAULT)
@@ -54,7 +55,7 @@ def demote_nitter_mirror(mirror):
             mirrors.remove(mirror)
             mirrors.append(mirror) # Move to end
             cfg["nitter_mirrors"] = mirrors
-            atomic_write_json("config.json", cfg)
+            atomic_write_json("config_user/config.json", cfg)
             print(f"  📉 Demoted Nitter mirror: {mirror} (moved to end of list)")
     except Exception as e:
         print(f"Error demoting mirror {mirror}: {e}")
@@ -70,7 +71,7 @@ async def scrape_x_dot_com(handle, context, headless=True, timeout=60000):
         print("X.com: No credentials in .env. Skipping.")
         return False, False, 0, 0, 0, 0
 
-    with open("config.json") as f:
+    with open("config_user/config.json") as f:
         cfg = json.load(f)
     
     base_url = cfg.get("x_dot_com_base_url", "https://x.com").rstrip("/")
@@ -141,7 +142,9 @@ async def scrape_x_dot_com(handle, context, headless=True, timeout=60000):
             await page.goto(url, wait_until="networkidle")
 
         # SCRAPE TWEETS
-        existing_ids = get_existing_post_ids()
+        # Use keys for isolation
+        existing_keys = get_existing_post_keys()
+        # Determine if we're on the main timeline or replies tab
         try:
             await page.wait_for_selector('article[data-testid="tweet"]', timeout=20000)
         except:
@@ -178,8 +181,8 @@ async def scrape_x_dot_com(handle, context, headless=True, timeout=60000):
             
             if not post_id: continue
 
-            if not is_pinned and str(post_id) in existing_ids:
-                print(f"  🛑 Reached already scraped post {post_id}. Stopping.")
+            if not is_pinned and (str(post_id), handle.lower()) in existing_keys:
+                print(f"  🛑 Reached already scraped post {post_id} for @{handle}. Stopping.")
                 return True, False, scraped_count, new_count, new_replies, new_reposts
 
             content_el = await tweet.query_selector('div[data-testid="tweetText"]')
@@ -216,9 +219,14 @@ async def scrape_x_dot_com(handle, context, headless=True, timeout=60000):
             social_c = await tweet.query_selector('div[data-testid="socialContext"]')
             if social_c:
                 t = await social_c.inner_text()
-                if "Retweeted" in t:
+                if "retweeted" in t.lower():
                     is_retweet = True
-                    retweet_source = t.replace(" Retweeted", "").strip()
+                    retweet_source = t.lower().replace("retweeted", "").strip()
+                    # Capitalize first letter of handle if possible or just leave as is
+                    if retweet_source.startswith("@"):
+                        retweet_source = "@" + retweet_source[1:].capitalize()
+                    else:
+                        retweet_source = retweet_source.capitalize()
             
             reply_context = await tweet.query_selector('div[data-testid="replyContext"]')
             is_reply = bool(reply_context)
@@ -227,14 +235,14 @@ async def scrape_x_dot_com(handle, context, headless=True, timeout=60000):
                 if "Replying to" in t: is_reply = True
 
             if post_id and content:
-                status = ""
-                if is_pinned: status += " [📌 PINNED]"
-                if is_reply: status += " [↩️ REPLY]"
-                print(f"  ✅ Post {post_id}: {status} {content[:40]}... (Posted: {posted_at})")
                 is_new = add_post(post_id, handle, content, score="", is_reply=is_reply, is_pinned=is_pinned,
                          has_image=has_image, has_video=has_video, has_link=has_link, link_url=link_url, 
                          media_url=media_url, is_retweet=is_retweet, retweet_source=retweet_source, posted_at=posted_at)
                 if is_new:
+                    status = ""
+                    if is_pinned: status += " [📌 PINNED]"
+                    if is_reply: status += " [↩️ REPLY]"
+                    print(f"  ✅ Post {post_id}: {status} {content[:40]}... (Posted: {posted_at})")
                     new_count += 1
                     if is_reply: new_replies += 1
                     if is_retweet: new_reposts += 1
@@ -281,7 +289,7 @@ async def scrape_nitter(handle, mirror, context, cfg, suffix=""):
             print(f"  ⚠️ Diagnostics for {mirror}: Title='{title}', Snippet='{body_text[:100].replace(chr(10), ' ')}'")
             return False, False, 0, 0, 0, 0
 
-        existing_ids = get_existing_post_ids()
+        existing_keys = get_existing_post_keys()
         tweets = await page.query_selector_all(".timeline-item")
         for tweet in tweets:
             if await tweet.query_selector(".unavailable"): continue
@@ -292,8 +300,8 @@ async def scrape_nitter(handle, mirror, context, cfg, suffix=""):
             post_id = href.split("/")[-1].split("#")[0]
             
             is_pinned = bool(await tweet.query_selector(".pinned"))
-            if not is_pinned and str(post_id) in existing_ids:
-                print(f"  🛑 Reached already scraped post {post_id}. Stopping.")
+            if not is_pinned and (str(post_id), handle.lower()) in existing_keys:
+                print(f"  🛑 Reached already scraped post {post_id} for @{handle}. Stopping.")
                 return True, False, scraped_count, new_count, new_replies, new_reposts
 
             content_el = await tweet.query_selector(".tweet-content")
@@ -321,6 +329,12 @@ async def scrape_nitter(handle, mirror, context, cfg, suffix=""):
                 retweet_source_el = await retweet_indicator.query_selector("a")
                 if retweet_source_el:
                     retweet_source = (await retweet_source_el.inner_text()).strip()
+                else:
+                    text = await retweet_indicator.inner_text()
+                    # Case-insensitive removal of 'retweeted'
+                    for word in ["Retweeted", "retweeted"]:
+                        text = text.replace(word, "")
+                    retweet_source = text.strip()
 
             has_image = bool(await tweet.query_selector(".attachment.image"))
             has_video = bool(await tweet.query_selector(".attachment.video"))
@@ -352,15 +366,15 @@ async def scrape_nitter(handle, mirror, context, cfg, suffix=""):
                     break
 
             if post_id and content:
-                status = ""
-                if is_pinned: status += " [📌 PINNED]"
-                if is_reply: status += " [↩️ REPLY]"
-                if is_retweet: status += f" [🔄 RT from {retweet_source}]"
-                print(f"  ✅ Post {post_id}: {status} {content[:40]}... (Posted: {posted_at})")
                 is_new = add_post(post_id, handle, content, score="", is_reply=is_reply, is_pinned=is_pinned,
                          has_image=has_image, has_video=has_video, has_link=has_link, link_url=link_url, 
                          media_url=media_url, is_retweet=is_retweet, retweet_source=retweet_source, posted_at=posted_at)
                 if is_new:
+                    status = ""
+                    if is_pinned: status += " [📌 PINNED]"
+                    if is_reply: status += " [↩️ REPLY]"
+                    if is_retweet: status += f" [🔄 RT from {retweet_source}]"
+                    print(f"  ✅ Post {post_id}: {status} {content[:40]}... (Posted: {posted_at})")
                     new_count += 1
                     if is_reply: new_replies += 1
                     if is_retweet: new_reposts += 1
@@ -384,7 +398,7 @@ async def scrape_nitter(handle, mirror, context, cfg, suffix=""):
         return False, False, 0, 0, 0, 0
 
 async def scrape_handle(handle, context, mirror=None, skip_x=False):
-    with open("config.json") as f:
+    with open("config_user/config.json") as f:
         cfg = json.load(f)
     
     last_source = cfg.get("last_successful_source", "https://x.com")
@@ -455,7 +469,7 @@ async def scrape_handle(handle, context, mirror=None, skip_x=False):
     return False, blocked, 0, 0, 0, 0
 
 async def run_scraper():
-    with open("config.json") as f:
+    with open("config_user/config.json") as f:
         cfg = json.load(f)
     
     handles = cfg.get("handles", [])
@@ -531,7 +545,7 @@ async def main():
             except ImportError:
                 print("Poster module not found, skipping.")
             
-            with open("config.json") as f: cfg = json.load(f)
+            with open("config_user/config.json") as f: cfg = json.load(f)
             interval = cfg.get("refresh_seconds", 3600)
             print(f"Waiting {interval} seconds for next cycle...")
             await asyncio.sleep(interval)

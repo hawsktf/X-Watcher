@@ -4,14 +4,14 @@ import os
 import csv
 import time
 from datetime import datetime, timezone
-from db import POSTS_CSV, REPLIES_CSV, get_existing_reply_post_ids, get_all_posts, update_post_score, add_reply
+from db import POSTS_CSV, REPLIES_CSV, ENGAGEMENT_CSV, get_existing_reply_post_ids, get_all_posts, update_post_score, add_reply, get_pending_engagement_replies, mark_engagement_replied
 from quantifier import get_brand, get_ai_config, estimate_cost
 
 def get_persona():
-    with open("persona.txt", "r") as f:
+    with open("config_user/persona.txt", "r") as f:
         return f.read()
 
-def draft_reply_with_ai(content, brand_text, persona_text, handle):
+def draft_reply_with_ai(content, brand_text, persona_text, handle, model_override=None):
     cfg = get_ai_config()
     
     # Test mode: use template responses instead of AI
@@ -58,7 +58,7 @@ def draft_reply_with_ai(content, brand_text, persona_text, handle):
 
     client = genai.Client(api_key=api_key)
     
-    model_name = cfg.get("drafter_model", "gemini-2.5-pro")
+    model_name = model_override if model_override else cfg.get("drafter_model", "gemini-2.5-pro")
 
     prompt = f"""
     You are an AI agent representing the following brand:
@@ -70,12 +70,12 @@ def draft_reply_with_ai(content, brand_text, persona_text, handle):
     Your task is to draft a short, engaging reply to the following X (Twitter) post by @{handle}.
     
     Guidelines:
-    - Keep it under 220 characters.
+    - Keep it under 220 characters. Use line breaks to space out thoughts.
     - Be conversational, punchy, and additive. Don't just observe; add a fresh thought.
     - Use simple, direct language. Avoid academic, over-analytical, or "big" words.
     - Avoid being verbose or overly formal. Think "insightful friend", not "textbook."
     - Challenge the status quo (crypto, privacy, freedom) if it makes sense, but keep it readable.
-    - Do NOT use hashtags.
+    - Do NOT use hashtags. Do not end the reply with a period or any punctuation.
 
     Post Content:
     "{content}"
@@ -87,6 +87,7 @@ def draft_reply_with_ai(content, brand_text, persona_text, handle):
     }}
     """
 
+    raw_text = ""
     try:
         response = client.models.generate_content(model=model_name, contents=prompt)
         raw_text = response.text.strip()
@@ -106,12 +107,14 @@ def draft_reply_with_ai(content, brand_text, persona_text, handle):
         
         return text, insight, cost, model_name
     except Exception as e:
-        print(f"AI Error parsing JSON: {e}")
+        print(f"AI Error ({model_name}): {e}")
+        if raw_text:
+            print(f"Raw Text: {raw_text[:200]}")
         # Fallback to simple text if JSON fails
-        return raw_text[:280], "Fallback due to parse error.", 0.0, "Error"
+        return raw_text[:280] if raw_text else None, "Fallback due to AI/parse error.", 0.0, "Error"
 
 def run_generator():
-    with open("config.json") as f:
+    with open("config_user/config.json") as f:
         cfg = json.load(f)
         
     mode = cfg.get("workflow_mode", "draft")
@@ -198,7 +201,44 @@ def run_generator():
             count += 1
             time.sleep(2) # Rate limiting
             
-    print(f"Generator: Drafted {count} new replies.")
+    print(f"Generator: Drafted {count} new replies from monitored handles.")
+
+    # --- Engagement Replies Logic ---
+    if cfg.get("engagement_enabled", False):
+        eng_replies = get_pending_engagement_replies()
+        eng_count = 0
+        if eng_replies:
+            print(f"💡 Generator: Processing {len(eng_replies)} pending engagement replies...")
+            for er in eng_replies:
+                if er.get('engagement_mode') != 'reply':
+                    continue
+                
+                reply_id = er['reply_id']
+                handle = er['handle']
+                content = er['content']
+                target_post_id = er['target_post_id']
+
+                print(f"  📝 Drafting engagement reply for @{handle} (Target Post: {target_post_id})...")
+                
+                eng_model = cfg.get("engagement_model")
+                reply, insight, cost, model_name = draft_reply_with_ai(content, brand_text, persona_text, handle, model_override=eng_model)
+                
+                if reply:
+                    if insight:
+                        print(f"  🧠 Strategy: {insight}")
+                    if emojis_enabled and "🔒" not in reply:
+                         reply += " 🔒"
+
+                    # Add to main replies table
+                    add_reply(target_post_id, handle, reply, status="pending", generation_model=model_name, cost=cost, insight=insight)
+                    # Mark as replied in engagement table
+                    mark_engagement_replied(reply_id)
+                    
+                    print(f"  ✅ Drafted: {reply[:50]}... (Cost: ${cost:.5f}) [{model_name}]")
+                    eng_count += 1
+                    time.sleep(2)
+            
+            print(f"Generator: Drafted {eng_count} new engagement replies.")
 
 if __name__ == "__main__":
     from dotenv import load_dotenv
