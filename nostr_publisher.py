@@ -11,27 +11,43 @@ load_dotenv()
 
 import threading
 
-def _publish_worker(event, relays):
-    """Worker thread to handle the asynchronous pynostr RelayManager."""
+from tornado.websocket import websocket_connect
+from tornado.ioloop import IOLoop
+from tornado import gen
+
+@gen.coroutine
+def _send_to_relay(url, message):
+    """Coroutine to connect, send, and close."""
     try:
-        print(f"  📡 NOSTR: Connecting to {len(relays)} relays...")
-        relay_manager = RelayManager()
-        for r in relays:
-            relay_manager.add_relay(r)
+        ws = yield websocket_connect(url, connect_timeout=10)
+        ws.write_message(message)
+        # Primal and some others need a bit longer to process
+        yield gen.sleep(5)
+        ws.close()
+        return True
+    except Exception as e:
+        print(f"     ❌ NOSTR: {url} failed: {e}")
+        return False
+
+def _publish_worker(event, relays):
+    """Worker thread using Tornado to broadcast event to multiple relays."""
+    try:
+        message = event.to_message()
+        loop = IOLoop()
         
-        # Open connections (starts a background loop)
-        relay_manager.open_connections()
+        success_list = []
+        fail_list = []
         
-        # Give it enough time to handshake with all relays
-        time.sleep(5)
+        print(f"  📡 NOSTR: Starting broadcast to {len(relays)} relays...")
+        for url in relays:
+            res = loop.run_sync(lambda: _send_to_relay(url, message))
+            if res:
+                success_list.append(url)
+                print(f"     ✅ {url} (Success)")
+            else:
+                fail_list.append(url)
         
-        # Broadcast
-        relay_manager.publish_event(event)
-        
-        # Give it more time to ensure broadcast reached relays and settled
-        time.sleep(10)
-        relay_manager.close_connections()
-        print(f"  ✅ NOSTR: Broadcasted event {event.id}")
+        print(f"  ✅ NOSTR: Broadcast finished. Success: {len(success_list)}, Failures: {len(fail_list)}")
     except Exception as e:
         print(f"  ❌ NOSTR Worker Error: {e}")
 
@@ -58,7 +74,7 @@ def publish_to_nostr(content, nitter_link, screenshot_url=None):
         if nitter_link:
             message += f"\n\n🔗 Original Post: {nitter_link}"
         if screenshot_url:
-            message += f"\n\n🖼️ {screenshot_url}"
+            message += f"\n\n{screenshot_url}"
             
         # Kind 1 is default for Note
         event = Event(content=message, kind=1)
@@ -84,10 +100,9 @@ def publish_to_nostr(content, nitter_link, screenshot_url=None):
         t = threading.Thread(target=_publish_worker, args=(event, relays), daemon=True)
         t.start()
         
-        # We join with a timeout but we don't strictly NEED to block the main thread for long
-        # if the daemon is doing its job. However, to return the ID, we wait.
+        # We join with a timeout that exceeds the worker's total wait time (approx 20s)
         print(f"  📡 NOSTR: Broadcast thread started. Handing off event {event.id[:8]}...")
-        t.join(timeout=15) # Increased timeout for slow relay connections
+        t.join(timeout=30) 
         
         return event.id
     except Exception as e:

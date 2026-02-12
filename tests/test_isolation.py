@@ -13,11 +13,11 @@ load_dotenv()
 def test_isolation():
     print("🚀 Starting Isolated Test: Hello World NOSTR ---\n")
     
-    # 1. Prepare Dummy Image
-    dummy_path = "debug/hello_world.png"
+    # 1. Use Real Image
+    dummy_path = "debug/real_image.png"
     if not os.path.exists(dummy_path):
-        with open(dummy_path, "w") as f:
-            f.write("Dummy Image Data for Hello World Test")
+        print(f"  ❌ Media: Please run the python command to generate debug/real_image.png first.")
+        return
 
     # 2. Test Media Upload
     print("Step 1: Testing Media Uploader...")

@@ -129,25 +129,74 @@ def upload_to_pomf(file_path):
         print(f"  ❌ Media: pomf2.la error: {e}")
         return None
 
+def upload_to_0x0(file_path):
+    """Uploads to 0x0.st"""
+    if not os.path.exists(file_path): return None
+    print(f"  ☁️ Media: Uploading {os.path.basename(file_path)} to 0x0.st...")
+    url = "https://0x0.st"
+    try:
+        with open(file_path, 'rb') as f:
+            files = {'file': f}
+            response = requests.post(url, files=files, timeout=30)
+            
+        if response.status_code == 200:
+            img_url = response.text.strip()
+            if img_url.startswith("http"):
+                print(f"  ✅ Media: Uploaded successfully! URL: {img_url}")
+                return img_url
+        
+        print(f"  ❌ Media: 0x0.st failed with status {response.status_code}")
+        return None
+    except Exception as e:
+        print(f"  ❌ Media: 0x0.st error: {e}")
+        return None
+
+def upload_to_litterbox(file_path):
+    """Uploads to Litterbox (Temporary hosting)"""
+    if not os.path.exists(file_path): return None
+    print(f"  ☁️ Media: Uploading {os.path.basename(file_path)} to litterbox.catbox.moe...")
+    url = "https://litterbox.catbox.moe/resources/internals/api.php"
+    try:
+        with open(file_path, 'rb') as f:
+            data = {'reqtype': 'fileupload', 'time': '1h'} # 1 hour is enough for verify
+            files = {'fileToUpload': f}
+            response = requests.post(url, data=data, files=files, timeout=30)
+            
+        if response.status_code == 200:
+            img_url = response.text.strip()
+            if img_url.startswith("http"):
+                print(f"  ✅ Media: Uploaded successfully! URL: {img_url}")
+                return img_url
+        
+        print(f"  ❌ Media: Litterbox failed with status {response.status_code}")
+        return None
+    except Exception as e:
+        print(f"  ❌ Media: Litterbox error: {e}")
+        return None
+
 def upload_media(file_path):
     """Try multiple providers for robustness."""
-    # 1. Try pomf2.la (Usually very fast/reliable)
-    url = upload_to_pomf(file_path)
+    # 1. Try Uguu.se (Usually very reliable for valid images)
+    url = upload_to_uguu(file_path)
     if url: return url
 
-    # 2. Try Catbox (Very reliable)
+    # 2. Try Catbox.moe
     url = upload_to_catbox(file_path)
     if url: return url
     
-    # 2. Try Uguu
-    url = upload_to_uguu(file_path)
+    # 3. Try Litterbox
+    url = upload_to_litterbox(file_path)
     if url: return url
     
-    # 3. Try void.cat
+    # 4. Try pomf2.la
+    url = upload_to_pomf(file_path)
+    if url: return url
+    
+    # 5. Try void.cat
     url = upload_to_void_cat(file_path)
     if url: return url
     
-    # 4. Try nostr.build (requires NIP-98 now)
+    # 6. Try nostr.build (requires NIP-98 now)
     url = upload_to_nostr_build(file_path)
     
     return url
