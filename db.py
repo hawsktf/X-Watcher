@@ -337,15 +337,36 @@ def add_reply(post_id, handle, content, status="pending", generation_model="unkn
             ""
         ])
 
-def get_pending_replies():
+def get_pending_replies(status='pending'):
     replies = []
     if os.path.exists(REPLIES_CSV):
         with open(REPLIES_CSV, 'r', newline='') as f:
             reader = csv.DictReader(f)
             for row in reader:
-                if row['status'] == 'pending':
+                if row['status'] == status:
                     replies.append(row)
     return replies
+
+def get_qualified_replies():
+    return get_pending_replies(status='qualified')
+
+def get_post_details(post_id):
+    if os.path.exists(POSTS_CSV):
+        with open(POSTS_CSV, 'r', newline='') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row['post_id'] == str(post_id):
+                    return row
+    return None
+
+def is_already_replied(target_post_id):
+    if os.path.exists(REPLIES_CSV):
+        with open(REPLIES_CSV, 'r', newline='') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row['target_post_id'] == str(target_post_id) and row['status'] in ['posted', 'qualified']:
+                    return True
+    return False
 
 def mark_reply_status(reply_id, status, reply_tweet_id=""):
     rows = []
@@ -372,7 +393,46 @@ def mark_reply_status(reply_id, status, reply_tweet_id=""):
             writer.writeheader()
             writer.writerows(rows)
 
-def get_all_handles():
+def mark_replies_batch(updates):
+    """
+    Updates multiple replies in a single file write.
+    'updates' should be a dict of {reply_id: status} or {reply_id: {'status': status, 'reply_tweet_id': ...}}
+    """
+    if not updates or not os.path.exists(REPLIES_CSV):
+        return
+        
+    rows = []
+    fieldnames = []
+    updated_count = 0
+    
+    with open(REPLIES_CSV, 'r', newline='') as f:
+        reader = csv.DictReader(f)
+        fieldnames = reader.fieldnames
+        if not fieldnames: return
+        for row in reader:
+            rid = row['id']
+            if rid in updates:
+                upd = updates[rid]
+                if isinstance(upd, dict):
+                    new_status = upd.get('status')
+                    if new_status: row['status'] = new_status
+                    if new_status == 'posted':
+                         row['posted_at'] = datetime.now(timezone.utc).isoformat()
+                         row['reply_tweet_id'] = upd.get('reply_tweet_id', '')
+                else:
+                    row['status'] = upd
+                    if upd == 'posted':
+                        row['posted_at'] = datetime.now(timezone.utc).isoformat()
+                updated_count += 1
+            rows.append(row)
+            
+    if updated_count > 0:
+        with open(REPLIES_CSV, 'w', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames, quoting=csv.QUOTE_ALL)
+            writer.writeheader()
+            writer.writerows(rows)
+        # print(f"  💾 DB: Batch updated {updated_count} replies.")
+
     handles = []
     with open(HANDLES_CSV, 'r', newline='') as f:
         reader = csv.DictReader(f)
@@ -395,9 +455,8 @@ def get_existing_reply_post_ids():
         with open(REPLIES_CSV, 'r', newline='') as f:
             reader = csv.DictReader(f)
             for row in reader:
-                # Include pending and posted to prevent duplication
-                if row['status'] in ['pending', 'posted']:
-                    ids.add(row['target_post_id'])
+                # Return ALL target_post_ids regardless of status to prevent re-generation
+                ids.add(row['target_post_id'])
     return ids
 
 def get_existing_post_ids():

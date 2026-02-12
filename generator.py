@@ -5,9 +5,13 @@ import csv
 import time
 from datetime import datetime, timezone
 from db import POSTS_CSV, REPLIES_CSV, get_existing_reply_post_ids, get_all_posts, update_post_score, add_reply
-from quantifier import get_personality, get_ai_config, estimate_cost
+from quantifier import get_brand, get_ai_config, estimate_cost
 
-def draft_reply_with_ai(content, persona, handle):
+def get_persona():
+    with open("persona.txt", "r") as f:
+        return f.read()
+
+def draft_reply_with_ai(content, brand_text, persona_text, handle):
     cfg = get_ai_config()
     
     # Test mode: use template responses instead of AI
@@ -57,16 +61,20 @@ def draft_reply_with_ai(content, persona, handle):
     model_name = cfg.get("drafter_model", "gemini-2.5-pro")
 
     prompt = f"""
-    You are an AI agent with the following persona:
-    {persona}
+    You are an AI agent representing the following brand:
+    {brand_text}
 
-    Your task is to draft a reply to the following X (Twitter) post by @{handle}.
+    You speak with the following persona:
+    {persona_text}
+
+    Your task is to draft a short, engaging reply to the following X (Twitter) post by @{handle}.
     
     Guidelines:
-    - Keep it under 200 characters.
-    - Be insightful, slightly witty, but professional.
-    - Challenge the status quo if relevant (crypto, privacy, freedom).
-    - Do NOT be generic.
+    - Keep it under 220 characters.
+    - Be conversational, punchy, and additive. Don't just observe; add a fresh thought.
+    - Use simple, direct language. Avoid academic, over-analytical, or "big" words.
+    - Avoid being verbose or overly formal. Think "insightful friend", not "textbook."
+    - Challenge the status quo (crypto, privacy, freedom) if it makes sense, but keep it readable.
     - Do NOT use hashtags.
 
     Post Content:
@@ -119,7 +127,8 @@ def run_generator():
     reply_to_reposts = cfg.get("reply_to_reposts", False)
 
     existing_reply_ids = get_existing_reply_post_ids()
-    personality = get_personality()
+    brand_text = get_brand()
+    persona_text = get_persona()
     
     posts_data = []
     if os.path.exists(POSTS_CSV):
@@ -153,9 +162,30 @@ def run_generator():
         if score < threshold:
             continue
             
+        # Optional but HIGHLY recommended: Age check here too to avoid drafting for expired posts
+        age_limit_hours = cfg.get("qualify_age_limit_hours", 12)
+        posted_at_str = row.get('posted_at')
+        if posted_at_str:
+            try:
+                try:
+                    posted_at = datetime.fromisoformat(posted_at_str)
+                except ValueError:
+                    clean_date = posted_at_str.replace(" UTC", "").replace("· ", "")
+                    posted_at = datetime.strptime(clean_date, "%b %d, %Y %I:%M %p")
+                
+                if posted_at.tzinfo is None:
+                    posted_at = posted_at.replace(tzinfo=timezone.utc)
+                
+                age_hours = (datetime.now(timezone.utc) - posted_at).total_seconds() / 3600
+                if age_hours > age_limit_hours:
+                    # Skip drafting for posts that are already too old
+                    continue
+            except:
+                pass # If date parse fails, we continue and let qualifier handle it
+            
         print(f"  📝 Drafting reply for @{handle} (Score: {score})...")
         
-        reply, insight, cost, model_name = draft_reply_with_ai(content, personality, handle)
+        reply, insight, cost, model_name = draft_reply_with_ai(content, brand_text, persona_text, handle)
         
         if reply:
             if insight:

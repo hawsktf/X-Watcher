@@ -8,6 +8,7 @@
         "reply_to_reposts": "If true, the bot will draft replies for retweets/reposts (default: false)",
         "ignore_pinned": "Whether to skip posts that are pinned at the top of a profile",
         "reply_latency_minutes": "Minutes to wait before drafting a reply to ensure natural timing",
+        "qualify_age_limit_hours": "Max age of a post (in hours) to be considered for a reply",
         "check_previous_replies": "Prevents double-replying to the same post",
         "headless_browser": "If true, browsers run in the background without a window",
         "gui_refresh_seconds": "How often the Feed GUI web page auto-refreshes (default 300s)",
@@ -56,6 +57,7 @@
     "reply_to_reposts": false,
     "ignore_pinned": true,
     "reply_latency_minutes": 10,
+    "qualify_age_limit_hours": 12,
     "check_previous_replies": true,
     "headless_browser": true,
     "gui_refresh_seconds": 300,
@@ -63,6 +65,10 @@
     "quantifier_model": "gemini-2.0-flash",
     "drafter_model": "gemini-2.5-flash",
     "ai_models": {
+        "gemini-2.5-flash": {
+            "input_cost": 7.5e-05,
+            "output_cost": 0.0003
+        },
         "gemini-2.0-flash": {
             "input_cost": 7.5e-05,
             "output_cost": 0.0003

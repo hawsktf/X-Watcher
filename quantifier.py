@@ -5,8 +5,8 @@ import csv
 import time
 from db import POSTS_CSV, update_post_score
 
-def get_personality():
-    with open("persona.txt", "r") as f:
+def get_brand():
+    with open("brand.txt", "r") as f:
         return f.read()
 
 def get_ai_config():
@@ -22,7 +22,7 @@ def estimate_cost(model_name, input_tokens, output_tokens):
         return (input_tokens / 1000 * in_cost) + (output_tokens / 1000 * out_cost)
     return 0.0
 
-def qualify_post_with_ai(content, persona):
+def qualify_post_with_ai(content, brand_text):
     cfg = get_ai_config()
     
     # Test mode: use keyword matching instead of AI
@@ -52,10 +52,10 @@ def qualify_post_with_ai(content, persona):
     model_name = cfg.get("quantifier_model", "gemini-1.5-flash")
 
     prompt = f"""
-    You are an AI agent with the following persona:
-    {persona}
+    You are an AI agent representing the following brand:
+    {brand_text}
 
-    Your task is to score the following X (Twitter) post based on how relevant and interesting it is to your persona and mission.
+    Your task is to score the following X (Twitter) post based on how relevant and aligned it is to your brand's core thesis and focus areas.
     Score it from 0 to 100.
     
     0 = Irrelevant, spam, or boring.
@@ -99,7 +99,7 @@ def run_quantifier():
         print("  ℹ️ No posts to quantify.")
         return
 
-    personality = get_personality()
+    brand_text = get_brand()
     
     posts_data = []
     with open(POSTS_CSV, 'r', newline='') as f:
@@ -129,7 +129,7 @@ def run_quantifier():
         needs_scoring = raw_score in [None, '']
 
         if needs_scoring:
-            score, cost = qualify_post_with_ai(content, personality)
+            score, cost = qualify_post_with_ai(content, brand_text)
             print(f"  📊 Scored @{handle}: {score} (Cost: ${cost:.5f})")
             
             row['score'] = score
