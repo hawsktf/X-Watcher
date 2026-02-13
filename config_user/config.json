@@ -102,7 +102,7 @@
     ],
     "browser_timeout_seconds": 30,
     "verification_wait_seconds": 15,
-    "use_x_dot_com": true,
+    "use_x_dot_com": false,
     "x_dot_com_timeout_seconds": 60,
     "use_browser_replier": true,
     "scrape_with_replies": true,
