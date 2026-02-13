@@ -9,8 +9,11 @@ X-Watcher is a powerful social media monitoring and automation agent designed fo
   - **Nitter Mirror Fallback**: Automatically rotates through a list of Nitter mirrors if `x.com` is blocked or failing, ensuring zero downtime.
   - **Source Prioritization**: Tracks the last successful source and prioritizes it for the next run.
 - **Session Persistence**: Uses Playwright persistent contexts to keep you logged in to X, avoiding repeated login attempts and potential flags.
-- **AI-Powered Quantification**: Uses Google Gemini to intelligently score posts (0-100) based on your persona and mission, with full cost tracking.
-- **AI Reply Drafting**: Generates contextual, witty replies using Gemini Pro, respecting your brand voice and style guidelines.
+- **AI-Powered Quantification**: Uses Google Gemini to intelligently score posts (0-100) based on your brand alignment, with full cost tracking and blacklist filtering.
+- **Intelligent Reply Drafting**: Generates contextual, witty replies using Gemini Pro, respecting your brand voice and persona guidelines.
+- **Auto-Qualification**: Filters drafts based on age, duplicate checks, and relevance thresholds before posting.
+- **Engagement Monitoring**: Monitors and replies to interactions on your own posts to boost visibility and community engagement.
+- **Nostr Integration**: Optionally broadcasts qualified replies to multiple Nostr relays, with automatic screenshot attachments.
 - **Premium Feed GUI**: 
   - Modern, X-style visualization of your `posts.csv`.
   - Dark mode with glassmorphism design and Outfit typography.
@@ -19,22 +22,39 @@ X-Watcher is a powerful social media monitoring and automation agent designed fo
   - Configurable auto-refresh (default 5 minutes).
 - **Interactive Dashboard**: A terminal-based hub to manage settings and run manual scrapers/repliers.
 
+## 🔄 Core Automation Flow
+
+![Core Automation Flow](core_flow_scraper_quantifier_generator_qualifier_poster.png)
+
+The agent operates in a continuous loop through five specialized stages:
+1. **Scraper**: Collects new posts from target handles via X.com or Nitter mirrors.
+2. **Quantifier**: Evaluates post relevance using AI and filters out noise based on your `brand.txt`.
+3. **Generator**: Drafts contextual replies using your `persona.txt` for communication style.
+4. **Qualifier**: Gatekeeper that ensures replies are timely, unique, and meeting quality standards.
+5. **Poster**: Publishes the qualified replies to X (via API or Browser) and Nostr.
+
+
 ## 🛠️ Project Structure
 
 - `app.py`: The central automation controller.
 - `scraper.py`: Advanced scraping logic for X and Nitter.
+- `quantifier.py`: AI relevance scoring and filtering.
+- `generator.py`: AI reply generation engine.
+- `qualifier.py`: Quality control and age-limit enforcement.
+- `poster.py`: Multi-platform publishing (X & Nostr).
+- `engagement.py`: Self-interaction monitoring.
 - `dashboard.py`: Terminal-based control panel.
 - `feed_app.py`: Flask backend for the web feed.
-- `templates/feed.html`: Frontend for the premium web feed.
-- `db.py`: Local CSV-based data storage.
+- `db.py`: Local CSV-based data storage engine.
 - `config_user/`: User-specific configuration.
   - `config.json`: Master configuration file.
-  - `persona.txt`: AI communication style guidelines.
-  - `brand.txt`: AI content and brand strategy.
+  - `persona.txt`: AI communication style (Tone, Vibe).
+  - `brand.txt`: AI content direction (Mission, Mission).
 - `data/`: CSV databases (`posts.csv`, `replies.csv`, `handles.csv`).
 - `debug/`: Screenshots and diagnostic files.
 - `tests/`: Utility scripts and verification tests.
-- `data/browser_session`: Persistent browser data storage.
+- `data/browser_session`: Persistent browser cookies and session data.
+
 
 ## 📦 Installation
 
@@ -60,13 +80,23 @@ X-Watcher is a powerful social media monitoring and automation agent designed fo
    ```
 
 2. **JSON Settings**: Edit `config_user/config.json`:
-   - `handles`: List of X handles to track.
-   - `refresh_seconds`: Interval between auto-scraper cycles.
-   - `gui_refresh_seconds`: GUI auto-refresh interval (default `300`).
-   - `headless_browser`: Set `true` to run browsers in the background.
-   - `quantifier_model`: AI model for scoring posts (default: `gemini-1.5-flash`).
-   - `drafter_model`: AI model for drafting replies (default: `gemini-1.5-pro`).
-   - `ai_models`: Cost mapping for different Gemini models.
+
+| Key | Description | Default |
+|-----|-------------|---------|
+| `handles` | List of X handles to track for content. | `[]` |
+| `refresh_seconds` | Interval between auto-scraper cycles. | `1800` |
+| `quantifier_threshold` | Minimum score (0-100) to draft a reply. | `80` |
+| `qualify_age_limit_hours` | Max age of a post to be considered for a reply. | `4` |
+| `workflow_mode` | `draft` (review only) or `post` (automated posting). | `post` |
+| `engagement_enabled` | Monitor and reply to interactions on your own posts. | `true` |
+| `nostr_enabled` | Enable cross-posting to Nostr relays. | `true` |
+| `use_x_dot_com` | Set to `true` to use authenticated X scraping instead of Nitter. | `false` |
+| `headless_browser` | Run browser in background without a window. | `true` |
+| `blacklist_words` | Stop processing posts containing these keywords. | `[]` |
+| `quantifier_model` | AI model used for scoring (fast/cheap). | `gemini-2.0-flash` |
+| `drafter_model` | AI model used for complex reply drafting. | `gemini-2.0-flash` |
+| `gui_refresh_seconds` | GUI auto-refresh interval in seconds. | `300` |
+
 
 ## 🏃 Usage
 

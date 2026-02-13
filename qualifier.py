@@ -1,6 +1,6 @@
 import json
 from datetime import datetime, timezone
-from db import get_pending_replies, get_post_details, is_already_replied, mark_replies_batch
+from db import get_pending_replies, get_post_details, is_already_replied, mark_replies_batch, update_post_score
 
 def run_qualifier():
     print("\n🛡️ Starting Qualifier (Safety Checks) ---")
@@ -9,6 +9,7 @@ def run_qualifier():
         cfg = json.load(f)
         
     age_limit_hours = cfg.get("qualify_age_limit_hours", 12)
+    blacklist_words = [w.lower() for w in cfg.get("blacklist_words", [])]
     
     pending = get_pending_replies(status='pending')
     qualified = get_pending_replies(status='qualified')
@@ -57,7 +58,7 @@ def run_qualifier():
                 
                 if age_hours > age_limit_hours:
                     print(f"  ❌ Qualified reply {reply_id} to @{handle} is now too old ({age_hours:.1f}h > {age_limit_hours}h). Expiring.")
-                    updates[reply_id] = 'expired'
+                    updates[reply_id] = {'status': 'expired', 'qualifier_reason': 'expiry analysis'}
                     count_rejected += 1
                     count_expired_existing += 1
             except Exception as e:
@@ -76,7 +77,7 @@ def run_qualifier():
         post = get_post_details(post_id)
         if not post:
              print(f"  ⚠️ Post {post_id} not found in DB. Rejecting reply {reply_id}.")
-             updates[reply_id] = 'rejected_missing_post'
+             updates[reply_id] = {'status': 'rejected_missing_post', 'qualifier_reason': 'missing post'}
              count_rejected += 1
              continue
              
@@ -99,7 +100,7 @@ def run_qualifier():
             
             if age_hours > age_limit_hours:
                 print(f"  ❌ Reply {reply_id} to @{handle} is too old ({age_hours:.1f}h > {age_limit_hours}h). Expiring.")
-                updates[reply_id] = 'expired'
+                updates[reply_id] = {'status': 'expired', 'qualifier_reason': 'expiry analysis'}
                 count_rejected += 1
                 continue
                 
@@ -107,17 +108,27 @@ def run_qualifier():
             print(f"  ⚠️ Error parsing date '{posted_at_str}' for reply {reply_id}: {e}. Skipping.")
             continue
 
+        # 1.5 Blacklist Check
+        content = post.get('content', '').lower()
+        blacklisted = [word for word in blacklist_words if word in content]
+        if blacklisted:
+            print(f"  🚫 Reply {reply_id} to @{handle} contains blacklisted words: {', '.join(blacklisted)}. Rejecting.")
+            updates[reply_id] = {'status': 'rejected_blacklist', 'qualifier_reason': 'blacklist'}
+            update_post_score(post_id, '0')
+            count_rejected += 1
+            continue
+
         # 2. Duplicate Check
         # Check if already replied in DB OR already qualified in this current loop
         if is_already_replied(post_id) or post_id in qualified_posts:
              print(f"  ❌ Reply {reply_id} to @{handle} is a duplicate target. Rejecting.")
-             updates[reply_id] = 'rejected_duplicate'
+             updates[reply_id] = {'status': 'rejected_duplicate', 'qualifier_reason': 'duplicate check'}
              count_rejected += 1
              continue
              
         # If passed all checks
         print(f"  ✅ Qualified reply {reply_id} to @{handle} (Age: {age_hours:.1f}h).")
-        updates[reply_id] = 'qualified'
+        updates[reply_id] = {'status': 'qualified', 'qualifier_reason': 'passed safety checks'}
         qualified_posts.add(post_id)
         count_qualified += 1
         

@@ -21,3 +21,5 @@ venv.bak/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+debug/
+*.png

@@ -41,7 +41,7 @@ def init_db():
         # Create consolidated replies CSV
         with open(REPLIES_CSV, 'w', newline='') as f:
             writer = csv.writer(f, quoting=csv.QUOTE_ALL)
-            writer.writerow(['id', 'target_post_id', 'handle', 'content', 'status', 'created_at', 'posted_at', 'generation_model', 'generation_cost', 'insight', 'reply_tweet_id', 'nostr_event_id', 'posted_to_nostr'])
+            writer.writerow(['id', 'target_post_id', 'handle', 'content', 'status', 'created_at', 'posted_at', 'generation_model', 'generation_cost', 'insight', 'reply_tweet_id', 'nostr_event_id', 'posted_to_nostr', 'qualifier_reason'])
             
     if not os.path.exists(ENGAGEMENT_CSV):
         with open(ENGAGEMENT_CSV, 'w', newline='') as f:
@@ -93,7 +93,7 @@ def init_db():
             r_header = next(reader, None)
         
         if r_header:
-            new_cols = ['nostr_event_id', 'posted_to_nostr']
+            new_cols = ['nostr_event_id', 'posted_to_nostr', 'qualifier_reason']
             cols_to_add = [c for c in new_cols if c not in r_header]
             
             if cols_to_add:
@@ -335,7 +335,7 @@ def migrate_replies():
         shutil.move(POSTED_REPLIES_CSV, os.path.join(archive_dir, f"posted_replies_migrated_{int(datetime.now().timestamp())}.csv"))
 
     # Append to replies.csv
-    fieldnames = ['id', 'target_post_id', 'handle', 'content', 'status', 'created_at', 'posted_at', 'generation_model', 'generation_cost', 'insight', 'reply_tweet_id', 'nostr_event_id', 'posted_to_nostr']
+    fieldnames = ['id', 'target_post_id', 'handle', 'content', 'status', 'created_at', 'posted_at', 'generation_model', 'generation_cost', 'insight', 'reply_tweet_id', 'nostr_event_id', 'posted_to_nostr', 'qualifier_reason']
     
     existing_ids = set()
     if os.path.exists(REPLIES_CSV):
@@ -351,11 +351,12 @@ def migrate_replies():
                 # Add default values for new columns if missing in migrated row
                 if 'nostr_event_id' not in r: r['nostr_event_id'] = ''
                 if 'posted_to_nostr' not in r: r['posted_to_nostr'] = 'N'
+                if 'qualifier_reason' not in r: r['qualifier_reason'] = ''
                 writer.writerow(r)
     
     print(f"Migrated {len(replies)} replies to replies.csv.")
 
-def add_reply(post_id, handle, content, status="pending", generation_model="unknown", cost=0.0, insight=""):
+def add_reply(post_id, handle, content, status="pending", generation_model="unknown", cost=0.0, insight="", qualifier_reason=""):
     max_id = 0
     if os.path.exists(REPLIES_CSV):
          with open(REPLIES_CSV, 'r', newline='') as f:
@@ -383,7 +384,8 @@ def add_reply(post_id, handle, content, status="pending", generation_model="unkn
             insight,
             "",
             "",
-            "N"
+            "N",
+            qualifier_reason
         ])
 
 def get_pending_replies(status='pending'):
@@ -472,6 +474,9 @@ def mark_replies_batch(updates):
                     if new_status == 'posted':
                          row['posted_at'] = datetime.now(timezone.utc).isoformat()
                          row['reply_tweet_id'] = upd.get('reply_tweet_id', '')
+                    
+                    if 'qualifier_reason' in upd:
+                        row['qualifier_reason'] = upd['qualifier_reason']
                 else:
                     row['status'] = upd
                     if upd == 'posted':
