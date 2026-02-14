@@ -134,8 +134,8 @@ async def run_engagement():
             success, blocked, count, new_c, new_rep, new_rt = await scrape_handle(my_handle, context)
             
             if not success:
-                print(f"  ❌ Failed to scrape @{my_handle} profile.")
-                return
+                print(f"  ⚠️ Warning: Failed to scrape @{my_handle} profile. Proceeding with existing posts in DB.")
+                # Removed return; continue to check what's already in DB
 
             # 2. Get the latest posts for this handle from the DB
             post_links = []

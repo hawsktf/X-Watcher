@@ -75,7 +75,7 @@ Line 2
 Line 3","test_pending","2026-02-12T13:46:43.959454+00:00","2026-02-12T13:46:43.959516+00:00","unknown","0.0","","","","N",""
 "453","2021959370624393520","learningcrypto","Yield denial is just updated feudalism.    Centralized finance extracts then restricts.    Self-custody is the exit door🔑 🔒","posted","2026-02-12T14:52:56.083538+00:00","2026-02-12T15:45:28.316249+00:00","gemini-2.0-flash","0.00011722499999999999","Frame yield restrictions as a form of modern feudalism, emphasizing self-custody as the solution.","2021973938587529721","815721ed4f955cf0e2b5c45d32807fc9e3a4b24e0873078b33a4392935a70232","Y",""
 "454","2021954949312032798","learningcrypto","Spot on.    First they create the problem  then they sell you the solution. Crypto's un-censorable rails are a threat AND an upgrade to the old settlement layers    Old guard playing catch-up 🔒","posted","2026-02-12T14:53:00.754438+00:00","2026-02-12T15:46:54.822805+00:00","gemini-2.0-flash","0.000128925","Highlight the pattern of incumbents first dismissing, then co-opting disruptive technologies, framing tokenized RWAs as an admission of blockchain's superior infrastructure.","2021974301361217870","e66cfef17d519bb8b287177b9bf5c90c7b47b7814adf12054772108f9f8ebaca","Y",""
-"455","2021958723007332368","coinbureau","{    ""reply"": ""Interesting to watch capital \*explicitly\* flow into privacy.\n\nPrivacy coins haven't seen this kind of attention in a while.\n\nBetting on privacy adoption as a \*response\* to surveillance makes sense""     ""insight"": ""Frame interest in privacy coins as a logical  🔒","expired","2026-02-12T14:53:04.686502+00:00","","Error","0.0","Fallback due to AI/parse error.","","65b7459120f035be016f32e87aedb811e6f2f7ee3e472b575b0425e8c1187a91","Y",""
+"455","2021958723007332368","coinbureau","Interesting to watch capital explicitly flow into privacy. Privacy coins haven't seen this kind of attention in a while. Betting on privacy adoption as a response to surveillance makes sense 🔒","expired","2026-02-12T14:53:04.686502+00:00","","Error","0.0","Frame interest in privacy coins as a logical response to surveillance.","","65b7459120f035be016f32e87aedb811e6f2f7ee3e472b575b0425e8c1187a91","Y","Manually corrected from malformed JSON (fallback)"
 "456","2021967600213803302","learningcrypto","Same script, new actors.
 
 It's a feature, not a bug, of centralized models. Self-custody isn't just about owning keys; it's about owning the exit 🔒","posted","2026-02-12T15:45:10.872539+00:00","2026-02-12T15:49:03.707982+00:00","gemini-2.0-flash","0.0001215","Highlight the systemic nature of the problem (centralized platforms failing) and the core solution (self-custody as an exit strategy).","2021974842028007855","ebef1bf9fa5b7355680ecc0533c286e778ddc4d9f74648fd62d50e4ffd4964fd","Y",""
@@ -156,3 +156,48 @@ Fiat decay is a feature, not a bug. Crypto offers an exit, but only if you self-
 Who controls the keys controls the coins, regardless of what agency is holding them.
 
 Self-custody isn't just for cypherpunks, it's about being your own underwriter 🔒","posted","2026-02-13T14:16:12.957363+00:00","2026-02-13T14:17:26.729354+00:00","gemini-2.0-flash","0.00013012499999999998","The reply highlights the human element of security vulnerabilities, even in ostensibly secure systems.","2022314173909401828","9b824478f0df9b7519bdd9e040a3ce93bfe95a3606072e5d3748bd99d2741158","Y","passed safety checks"
+"473","2022305012223766555","AaronRDay","2011 was early days for Bitcoin.
+
+Imagine the due diligence today if Epstein tried to 'get in touch'. 
+
+Different era 🔒","rejected_blacklist","2026-02-13T14:51:20.087410+00:00","","gemini-2.0-flash","0.00011475","Highlight the naivete of early Bitcoin, and the shift in awareness around centralized influence.","","","N","blacklist"
+"474","2022321755025555790","SwanDesk","AI using crypto for payments? 👀
+
+Means every transaction's logged on a public ledger.
+
+Privacy coins or better tech will be key for anyone not wanting their bot's travel history exposed 🔒","posted","2026-02-13T14:51:24.549820+00:00","2026-02-13T16:19:35.308832+00:00","gemini-2.0-flash","0.00011864999999999998","Highlight the privacy implications of AI transactions on a public blockchain and suggest a solution.","2022344912205943287","8dd3ad5ed3dfe9f8d3a80b3874130c132d0352c00647926594486346616c60e0","Y","passed safety checks"
+"475","2022322655492288879","sircryptotips","Unrealized gains tax? A glimpse into future control. Citizenship is now a subscription. Time to audit your exit strategies 🔒","expired","2026-02-13T16:19:14.140871+00:00","","Error","0.0","Frame taxation of unrealized gains as a form of control and link citizenship to financial subscription.","","61aa36119f3404fe3d5e8609896e9ed75fd94023630c99f36b6e8fb365b06d3e","Y","Manually corrected from malformed JSON (fallback)"
+"476","2022342136822460787","AaronRDay","Fix what, exactly
+
+New systems often just repackage old problems
+
+But now we have new tools to audit the books 🔒","posted","2026-02-13T16:19:18.682893+00:00","2026-02-13T16:22:03.487188+00:00","gemini-2.0-flash","0.0001152","The reply acknowledges the sentiment of the original post, then introduces the need for specific problem definition and promotes crypto's utility as an auditing mechanism.","2022345533780848896","1463dee040bdbc8b4d62d325e0943d17d57ebf3d419e73773b76ec4417643c7b","Y","passed safety checks"
+"477","2022344620085321743","AaronRDay","More like, what happens to anyone who tries to decentralize information?
+
+Swartz hit a nerve. Makes you wonder what systems are still rigged to protect centralized control🔑 🔒","posted","2026-02-13T16:55:36.431258+00:00","2026-02-13T16:57:02.399893+00:00","gemini-2.0-flash","0.000116475","Frame Swartz's case as a warning about the risks of challenging centralized power, connecting it to the broader theme of control systems.","2022354337226494243","cb643e4831b136bded959f1b7d3e295f38e5624f590fa9741508119b8ceb92f0","Y","passed safety checks"
+"478","2022403034345803789","SwanDesk","Unrealized gains tax? So, thoughtcrime is becoming taxable
+
+First they need to know what you *might* gain
+
+Self-custody is looking better by the day 🔒","posted","2026-02-13T20:31:09.555197+00:00","2026-02-13T20:31:26.509685+00:00","gemini-2.0-flash","0.00011685","Frame the tax as a form of thoughtcrime and highlight self-custody as a response.","2022408292988080336","fba51d7bfd96a72c3bdf95a91cf4778d85cc68feed44c2f34851cd93a5174b7d","Y","passed safety checks"
+"479","2022456858372641162","1MarkMoss","Agreed. Scarcity + state overreach is a far stronger pull than any ad campaign
+
+It's a reminder that infrastructure beats hype any day of the week 🔒","posted","2026-02-13T23:52:19.521428+00:00","2026-02-13T23:52:35.488762+00:00","gemini-2.0-flash","0.00012067499999999999","Emphasize the inherent value proposition of Bitcoin (scarcity, resistance to censorship) over marketing, connecting it to the brand's focus on infrastructure and escape from control.","2022458914147819845","e34d776c21bbcf648fdb383fc2937b74b5ebf13a33320eb7889b994ce456bfc7","Y","passed safety checks"
+"480","2022564208215548077","coinbureau","ShinyHunters? More like reminder that even 'decentralized' platforms
+
+rely on *centralized* employee access
+
+This is why self-custody and knowing where your data lives matters 🔒","expired","2026-02-14T08:27:23.176211+00:00","","gemini-2.0-flash","0.00012112499999999999","Highlight the vulnerability of centralized access points within decentralized systems to promote self-custody as a protective measure.","","7c4f0f778add8bf12eed4a5c134d32211a84e0bf1483106accb2767554d330cf","Y","expiry analysis"
+"481","2022594331299975505","PrepperCanadian","Sanitized for the masses is key. 
+
+The fun part is imagining the parallel systems being built now, out of sight 🪞
+
+It's not Skynet, it's a hidden layer 🔒","posted","2026-02-14T09:18:21.238233+00:00","2026-02-14T11:28:40.700924+00:00","gemini-2.0-flash","0.00012577499999999998","Acknowledge the original point, then pivot to the idea of hidden, parallel systems being developed in secret.","2022634090189795556","75ce77349124a053429bbe22779059244b2c90a142b69b55054379f082d24691","Y","passed safety checks"
+"482","2022645020831158455","AaronRDay","Real ID's scope creep shows how 'temporary' measures become permanent. 
+
+And Palantir? Surveillance creeping in plain sight. A reminder that tech isn't neutral; it reflects who controls it 🔒","posted","2026-02-14T12:35:46.206896+00:00","2026-02-14T12:36:02.431246+00:00","gemini-2.0-flash","0.00011924999999999998","Highlight the mission creep in systems like Real ID and warn about the implications of data aggregation by companies like Palantir.","2022651042354384899","350a2bcc325b7f145da89c9bd73363f13668358547edb5832707d058bf410d99","Y","passed safety checks"
+"483","2022669974905524252","coinbureau","A good reminder that data handling practices are as important as the tech itself
+
+'Decentralized' tech with centralized data = single point of failure
+
+Self-custody isn't just for keys 🔒","posted","2026-02-14T14:14:24.809331+00:00","2026-02-14T14:14:42.586224+00:00","gemini-2.0-flash","0.00012389999999999998","Highlight the weakness of centralized data storage in otherwise decentralized systems and remind users that self-custody principles apply to more than just crypto keys.","2022675873321918617","be0737a1c494cb42820d51720c48c849fdab01fc48914689bc33c31d6db516a2","Y","passed safety checks"

@@ -98,7 +98,11 @@ def draft_reply_with_ai(content, brand_text, persona_text, handle, model_overrid
             raw_text = raw_text.split("```")[1].strip()
             
         res = json.loads(raw_text)
-        text = res.get("reply", "").replace('"', '')
+        text = res.get("reply", "").strip()
+        # Remove surrounding quotes if they exist (sometimes AI adds them inside the JSON string)
+        if text.startswith('"') and text.endswith('"'):
+            text = text[1:-1].strip()
+        
         insight = res.get("insight", "No insight provided.")
         
         input_tokens = client.models.count_tokens(model=model_name, contents=prompt).total_tokens
@@ -110,8 +114,29 @@ def draft_reply_with_ai(content, brand_text, persona_text, handle, model_overrid
         print(f"AI Error ({model_name}): {e}")
         if raw_text:
             print(f"Raw Text: {raw_text[:200]}")
-        # Fallback to simple text if JSON fails
-        return raw_text[:280] if raw_text else None, "Fallback due to AI/parse error.", 0.0, "Error"
+            # Robust fallback: Try to extract content even if JSON is malformed
+            cleaned = raw_text
+            # If it looks like a JSON fragment, try to pick out the reply part
+            if '"reply":' in cleaned:
+                try:
+                    # Very simple regex-like extraction for fallback
+                    parts = cleaned.split('"reply":')
+                    if len(parts) > 1:
+                        content_part = parts[1].split('","')[0].split('", "')[0].split('"}')[0].split('"}')[0].strip()
+                        # Strip leading/trailing quote and colon if present
+                        content_part = content_part.strip(':').strip().strip('"').strip()
+                        if content_part:
+                            return content_part[:280], "Extracted from malformed JSON.", 0.0, "Error"
+                except:
+                    pass
+            
+            # Final fallback: strip all structural JSON characters and common keys
+            for noisy in ['{', '}', '"reply":', '"insight":', '```json', '```']:
+                cleaned = cleaned.replace(noisy, '')
+            cleaned = cleaned.strip().strip('"').strip(':').strip()
+            return cleaned[:280], "Fallback due to AI/parse error.", 0.0, "Error"
+        
+        return None, "Fallback due to AI/parse error.", 0.0, "Error"
 
 def run_generator():
     with open("config_user/config.json") as f:

@@ -8,7 +8,7 @@ from datetime import datetime, timezone, timedelta
 from tqdm import tqdm
 import tweepy
 from playwright.async_api import async_playwright
-from db import get_qualified_replies, mark_reply_status, update_handle_check, get_post_details, update_nostr_status, REPLIES_CSV # Changed import
+from db import get_qualified_replies, mark_reply_status, update_handle_check, get_post_details, update_nostr_status, add_post, REPLIES_CSV # Added add_post
 from nostr_publisher import publish_to_nostr
 from media_uploader import upload_media
 
@@ -155,7 +155,9 @@ async def post_reply_via_api(content, reply_to_id):
             wait_seconds = reset_time - datetime.now(timezone.utc).timestamp()
             if wait_seconds < 0: wait_seconds = 900
             
-        wait_with_progress(wait_seconds, "API 429 Too Many Requests")
+        print(f"\n⚠️ API Window Limit: Received 429 (Too Many Requests).")
+        print(f"   Note: This is a short-term 15-minute window throttle from X, separate from your daily/monthly ceiling.")
+        wait_with_progress(wait_seconds, "API 429 Window Throttled")
         return False, None
     except tweepy.TweepyException as e:
         print(f"  ❌ API Error posting reply: {e}")
@@ -194,7 +196,9 @@ async def post_tweet_via_api(content):
             wait_seconds = reset_time - datetime.now(timezone.utc).timestamp()
             if wait_seconds < 0: wait_seconds = 900
             
-        wait_with_progress(wait_seconds, "API 429 Too Many Requests")
+        print(f"\n⚠️ API Window Limit: Received 429 (Too Many Requests).")
+        print(f"   Note: This is a short-term 15-minute window throttle from X, separate from your daily/monthly ceiling.")
+        wait_with_progress(wait_seconds, "API 429 Window Throttled")
         return False, None, None
     except tweepy.Forbidden as e:
         print(f"  ❌ API Error posting tweet: 403 Forbidden")
@@ -588,15 +592,22 @@ async def run_poster():
         success = False
         reply_tweet_id = ""
         
-        # Try Browser first (Preferred)
-        try:
-             success, reply_tweet_id = await post_reply_via_browser(handle, content, reply_to_url)
-        except Exception as e:
-            print(f"  Browser posting failed: {e}")
+        use_browser = cfg.get("use_browser_replier", False)
+        
+        # Try Browser if enabled
+        if use_browser:
+            try:
+                 success, reply_tweet_id = await post_reply_via_browser(handle, content, reply_to_url)
+            except Exception as e:
+                print(f"  Browser posting failed: {e}")
             
-        # Fallback to API if Browser fails
+        # Fallback to API if Browser fails OR if browser is disabled
         if not success:
-            print("  ⚠️ Browser posting failed. Attempting API fallback...")
+            if use_browser:
+                print("  ⚠️ Browser posting failed. Attempting API fallback...")
+            else:
+                print("  🔌 Browser replier disabled. Using API...")
+                
             # We need the tweet ID for the API, which is post_id
             success, api_tweet_id = await post_reply_via_api(content, post_id)
             if success:
@@ -608,6 +619,18 @@ async def run_poster():
             print(f"  ✅ Successfully posted reply to @{handle}!")
             mark_reply_status(reply_id, 'posted', reply_tweet_id)
             update_handle_check(handle)
+            
+            # Immediately record in posts.csv so engagement monitor can find it
+            my_handle = cfg.get("twitter_handle", "kangofire").strip("@")
+            add_post(
+                post_id=reply_tweet_id,
+                handle=my_handle,
+                content=content,
+                score="100", # Our own replies are always relevant
+                is_reply=True,
+                posted_at=datetime.now(timezone.utc).isoformat()
+            )
+            print(f"  💾 Recorded bot reply {reply_tweet_id} in posts.csv for engagement tracking.")
 
         # --- NOSTR INTEGRATION (DECOUPLED) ---
         if cfg.get("nostr_enabled", False):
