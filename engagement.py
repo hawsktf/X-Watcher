@@ -30,10 +30,10 @@ async def scrape_post_replies(post_url, context):
         if is_nitter:
             # Nitter selectors
             try: await page.wait_for_selector(".timeline-item", timeout=10000)
-            except: return []
+            except: return [], False
             
             items = await page.query_selector_all(".timeline-item")
-            if len(items) <= 1: return []
+            if len(items) <= 1: return [], True
             
             # Skip first one (main post)
             for item in items[1:]:
@@ -57,11 +57,11 @@ async def scrape_post_replies(post_url, context):
             try:
                 await page.wait_for_selector('article[data-testid="tweet"]', timeout=10000)
             except:
-                return []
+                return [], False
 
             tweets = await page.query_selector_all('article[data-testid="tweet"]')
             if len(tweets) <= 1:
-                return []
+                return [], True
 
             # Skip the first one (the main post)
             for tweet in tweets[1:]:
@@ -88,9 +88,10 @@ async def scrape_post_replies(post_url, context):
                 
     except Exception as e:
         print(f"  ❌ Error scraping replies: {e}")
+        return [], False
     finally:
         await page.close()
-    return replies
+    return replies, True
 
 async def run_engagement():
     load_dotenv()
@@ -192,9 +193,34 @@ async def run_engagement():
 
             print(f"  📊 Found {len(post_links)} posts to check for replies.")
             
+            # Get mirrors for fallback
+            mirrors = cfg.get("nitter_mirrors", NITTER_MIRRORS_DEFAULT)
+            
             new_replies_count = 0
-            for post_id, post_url in post_links:
-                replies = await scrape_post_replies(post_url, context)
+            for post_id, original_url in post_links:
+                # Try the original URL first (derived from last successful source)
+                replies, success = await scrape_post_replies(original_url, context)
+                
+                if not success:
+                    print(f"  ⚠️ Primary source failed for {post_id}. Trying fallbacks...")
+                    # Determine which source failed
+                    failed_source = "x.com" if "x.com" in original_url else "nitter"
+                    
+                    # Try other mirrors
+                    other_mirrors = [m for m in mirrors if m not in original_url]
+                    random.shuffle(other_mirrors)
+                    
+                    for m in other_mirrors:
+                        fallback_url = f"{m.rstrip('/')}/{my_handle}/status/{post_id}"
+                        print(f"    🛡️ Retrying via {m}...")
+                        replies, success = await scrape_post_replies(fallback_url, context)
+                        if success:
+                            break
+                            
+                if not success:
+                    print(f"  ❌ Failed to scrape replies for {post_id} after all attempts.")
+                    continue
+
                 for r in replies:
                     # Filter out own handle
                     if r['handle'].lower() == my_handle.lower():
