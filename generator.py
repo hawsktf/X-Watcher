@@ -58,6 +58,7 @@ def draft_reply_with_ai(content, brand_text, persona_text, handle, model_overrid
 
     client = genai.Client(api_key=api_key)
     
+    
     model_name = model_override if model_override else cfg.get("drafter_model", "gemini-2.5-pro")
 
     prompt = f"""
@@ -76,6 +77,8 @@ def draft_reply_with_ai(content, brand_text, persona_text, handle, model_overrid
     - Avoid being verbose or overly formal. Think "insightful friend", not "textbook."
     - Challenge the status quo (crypto, privacy, freedom) if it makes sense, but keep it readable.
     - Do NOT use hashtags. Do not end the reply with a period or any punctuation.
+    - CRITICAL: Do NOT use markdown. Do NOT use bold (**text**) or italics (*text*). Do NOT use asterisks.
+    - Output PLAIN TEXT only.
 
     Post Content:
     "{content}"
@@ -102,6 +105,9 @@ def draft_reply_with_ai(content, brand_text, persona_text, handle, model_overrid
         # Remove surrounding quotes if they exist (sometimes AI adds them inside the JSON string)
         if text.startswith('"') and text.endswith('"'):
             text = text[1:-1].strip()
+            
+        # EXTRA CLEANUP: Remove asterisks if they slipped through
+        text = text.replace("*", "")
         
         insight = res.get("insight", "No insight provided.")
         
@@ -126,14 +132,14 @@ def draft_reply_with_ai(content, brand_text, persona_text, handle, model_overrid
                         # Strip leading/trailing quote and colon if present
                         content_part = content_part.strip(':').strip().strip('"').strip()
                         if content_part:
-                            return content_part[:280], "Extracted from malformed JSON.", 0.0, "Error"
+                            return content_part[:280].replace("*", ""), "Extracted from malformed JSON.", 0.0, "Error"
                 except:
                     pass
             
             # Final fallback: strip all structural JSON characters and common keys
             for noisy in ['{', '}', '"reply":', '"insight":', '```json', '```']:
                 cleaned = cleaned.replace(noisy, '')
-            cleaned = cleaned.strip().strip('"').strip(':').strip()
+            cleaned = cleaned.strip().strip('"').strip(':').strip().replace("*", "")
             return cleaned[:280], "Fallback due to AI/parse error.", 0.0, "Error"
         
         return None, "Fallback due to AI/parse error.", 0.0, "Error"

@@ -27,7 +27,7 @@ def qualify_post_with_ai(content, brand_text):
     
     # Test mode: use keyword matching instead of AI
     if cfg.get("test_mode", False):
-        keywords = ["crypto", "bitcoin", "privacy", "surveillance", "identity", "kyc", "freedom", "money"]
+        keywords = ["crypto", "monero", "privacy", "surveillance", "identity", "kyc", "freedom", "money"]
         content_lower = content.lower()
         hits = sum(1 for k in keywords if k in content_lower)
         if hits > 0:
@@ -55,7 +55,7 @@ def qualify_post_with_ai(content, brand_text):
     You are an AI agent representing the following brand:
     {brand_text}
 
-    Your task is to score the following X (Twitter) post based on how relevant and aligned it is to your brand's core thesis and focus areas.
+    Your task is to score the following content based on how relevant and aligned it is to your brand's core thesis and focus areas.
     Score it from 0 to 100.
     
     0 = Irrelevant, spam, or boring.

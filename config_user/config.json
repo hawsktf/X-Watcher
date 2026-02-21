@@ -59,7 +59,7 @@
         "coinbureau"
     ],
     "refresh_seconds": 1800,
-    "quantifier_threshold": 80,
+    "quantifier_threshold": 70,
     "emojis_enabled": true,
     "reply_to_replies": false,
     "reply_to_reposts": false,
